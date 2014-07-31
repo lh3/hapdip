@@ -1,5 +1,7 @@
 ## Getting started
 
+You can copy-paste the following command lines in your terminal from a Linux
+machine (or replace `k8-linux` with `k8-darwin` on Mac):
 ```sh
 # download the k8 executable
 wget -O- http://sourceforge.net/projects/biobin/files/unclassified/k8-0.2.1.tar.bz2/download \
