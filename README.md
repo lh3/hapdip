@@ -42,9 +42,10 @@ hapdip  INDEL   FP      1767    INDEL-1bp
 hapdip  INDEL   TP      98315   INDEL-1bp
 ```
 
-If you want to try a new variant caller, you need to download the BWA-MEM
-alignment with
+If you want to try a new variant caller, you need to download the reference
+genome and the BWA-MEM alignments with
 ```sh
+wget ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz
 wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/CHM1.mem.bam
 wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/NA12878.mem.bam
 ```
