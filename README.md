@@ -67,6 +67,10 @@ NA12878 hets. This way, we get an estimate of TP and FP without comparing
 variant calls. For details and more discussions, please see [the paper][varcmp]
 or [the preprint][arxiv].
 
+This method not only evaluates variant callers, but also evaluates the reference
+genome. A good genome should yield fewer het calls from CHM1 and more het calls
+from NA12878.
+
 ## Usage
 
 This repository contains a single script `hapdip.js` consisting of several
