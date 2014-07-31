@@ -921,8 +921,8 @@ function b8_anno(args)
 
 function b8_filter(args)
 {
-	var c, AB = 30, LC = 0, DP_coef = 4, DS = 1, FS = 20, min_q = 30, min_dp = 3, no_header = false, drop_flt = false;
-	while ((c = getopt(args, "a:q:f:HDd:c:s:")) != null) {
+	var c, AB = 30, LC = 0, DP_coef = 4, DS = 1, FS = 20, min_q = 30, min_dp = 3, no_header = false, drop_flt = false, auto_only = false;
+	while ((c = getopt(args, "Aa:q:f:HDd:c:s:")) != null) {
 		if (c == 'a') AB = parseInt(getopt.arg);
 		else if (c == 'q') min_q = parseFloat(getopt.arg);
 		else if (c == 'f') FS = parseFloat(getopt.arg);
@@ -931,6 +931,7 @@ function b8_filter(args)
 		else if (c == 'd') min_dp = parseInt(getopt.arg);
 		else if (c == 'c') DP_coef = parseFloat(getopt.arg);
 		else if (c == 's') DS = parseInt(getopt.arg);
+		else if (c == 'A') auto_only = true;
 	}
 
 	if (getopt.ind + 1 > args.length) {
@@ -943,6 +944,7 @@ function b8_filter(args)
 		print("         -s INT     min _DS ["+DS+"]");
 		print("         -H         suppress the VCF header");
 		print("         -D         drop filtered variants");
+		print("         -A         only output lines matching /^(chr)?[0-9]+/");
 		print("");
 		exit(1);
 	}
@@ -955,6 +957,7 @@ function b8_filter(args)
 	warn("Pass 1: computing average depth at variant sites...");
 	while (file.readline(buf) >= 0) {
 		var t = buf.toString().split("\t");
+		if (auto_only && !/^(chr)?[0-9]+$/.test(t[0])) continue;
 		var m;
 		if (parseFloat(t[5]) < min_q) continue;
 		if ((m = /_DP=(\d+)/.exec(t[7])) == null) continue;
@@ -992,6 +995,7 @@ function b8_filter(args)
 			continue;
 		}
 		var t = line.split("\t");
+		if (auto_only && !/^(chr)?[0-9]+$/.test(t[0])) continue;
 		var m, flt = '', dp = null;
 		if (parseFloat(t[5]) < min_q) continue;
 		if ((m = /_DP=(-?\d+)/.exec(t[7])) != null) dp = parseInt(m[1]);
