@@ -96,9 +96,36 @@ Note that `anno` only works with specific versions of GATK, SAMtools, FreeBayes
 and Platypus as it needs to extract information from caller-specific tags. If
 it does not work for your VCF, please filter with your own program.
 
+## Add-on: distance-based VCF comparison
+
+The `distEval` command evaluates a call set against a [GIAB][giab]-like truth
+dataset, which consists of one BED file giving high-confidence regions and one
+VCF file giving variants. To evaluate SNPs:
+```sh
+k8 hapdip.js distEval -d0 -b truth-reg.bed truth.vcf call.vcf
+```
+To evaluate INDELs:
+```sh
+k8 hapdip.js distEval -Id10 -b truth-reg.bed truth.vcf call.vcf
+```
+The output looks like:
+```
+distEval        SNP     N+P     2083729399
+distEval        SNP     TP      2632083
+distEval        SNP     FN      31513
+distEval        SNP     FP      654
+```
+where `N+P` gives the total length of the non-overlapping regions in
+`truth-reg.bed`, `TP` is the number of true SNPs (INDELs) within *d*-bp from a
+called SNP (INDEL), `FN` the number of true SNPs (INDELs) *not* within *d*-bp
+from any called SNPs (INDELs) and `FP` the number of called SNPs (INDELs) *not*
+within *d*-bp from any true SNPs (INDELs).
+
+
 [varcmp]: http://bioinformatics.oxfordjournals.org/content/early/2014/07/03/bioinformatics.btu356.abstract
 [vcf]: http://vcftools.sourceforge.net/specs.html
 [ftp]: ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/
 [arxiv]: http://arxiv.org/abs/1404.0929
 [script]: https://github.com/lh3/varcmp/tree/master/scripts
 [dedup]: http://picard.sourceforge.net/command-line-overview.shtml#MarkDuplicates
+[giab]: ftp://ftp-trace.ncbi.nih.gov/giab/ftp/data/NA12878/variant_calls/NIST/

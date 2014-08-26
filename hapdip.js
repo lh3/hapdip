@@ -40,7 +40,7 @@ var getopt = function(args, ostr) {
 	return optopt;
 }
 
-function intv_ovlp(intv, bits)
+function intv_ovlp2(intv, bits)
 {
 	if (typeof bits == "undefined") bits = 13;
 	intv.sort(function(a,b) {return a[0]-b[0];});
@@ -52,6 +52,10 @@ function intv_ovlp(intv, bits)
 		else intv[++j] = intv[i].slice(0);
 	}
 	intv.length = j + 1;
+	//
+	var sum = 0;
+	for (var i = 0; i < intv.length; ++i)
+		sum += intv[i][1] - intv[i][0];
 	// create the index
 	var idx = [], max = 0;
 	for (var i = 0; i < intv.length; ++i) {
@@ -63,7 +67,7 @@ function intv_ovlp(intv, bits)
 		} else if (idx[b] == null) idx[b] = i;
 		max = max > e? max : e;
 	}
-	return function(_b, _e) { // closure
+	return [function(_b, _e) { // closure
 		var x = _b >> bits;
 		if (x > max) return false;
 		var off = idx[x];
@@ -76,7 +80,12 @@ function intv_ovlp(intv, bits)
 		for (var i = off; i < intv.length && intv[i][0] < _e; ++i)
 			if (intv[i][1] > _b) return intv[i];
 		return null;
-	}
+	}, sum]
+}
+
+function intv_ovlp(intv, bits)
+{
+	return intv_ovlp2(intv, bits)[0];
 }
 
 Math.lgamma = function(z) {
@@ -176,14 +185,15 @@ function read_bed(fn)
 		if (reg[t[0]] == null) reg[t[0]] = [];
 		reg[t[0]].push([parseInt(t[1]), parseInt(t[2])]);
 	}
-	var n_rec = 0;
+	var n_rec = 0, sum = 0;
 	for (var chr in reg) {
-		idx[chr] = intv_ovlp(reg[chr]);
+		var a = intv_ovlp2(reg[chr])
+		idx[chr] = a[0], sum += a[1];
 		n_rec += reg[chr].length;
 	}
 	b.destroy();
 	f.close();
-	return [idx, n_rec];
+	return [idx, n_rec, sum];
 }
 
 function b8_bedovlp(args)
@@ -1099,6 +1109,107 @@ function b8_eval(args)
 	print(label, "INDEL", "TP", hetcnt[1][1] - hetcnt[0][1], "INDEL-1bp");
 }
 
+/*****************************
+ * Distance based evaluation *
+ *****************************/
+
+function b8_distEval(args)
+{
+	var c, fn_bed = null, max_d = 10, indel = false;
+	while ((c = getopt(args, "b:d:I")) != null) {
+		if (c == 'b') fn_bed = getopt.arg;
+		else if (c == 'd') max_d = parseInt(getopt.arg);
+		else if (c == 'I') indel = true;
+	}
+	if (getopt.ind + 2 > args.length) {
+		print("");
+		print("Usage:   k8 hapdip.js deval [options] <P.vcf> <call.vcf>\n");
+		print("Options: -d INT     max distance ["+max_d+"]");
+		print("         -b FILE    N+P regions, required unless P.vcf is a gVCF [null]");
+		print("         -I         evaluate INDELs (SNP is the default)");
+		print("");
+		exit(1);
+	}
+
+	var sum_NP = null, bed_NP = null;
+	if (fn_bed != null) {
+		warn("Reading N+P regions...");
+		var a = read_bed(fn_bed);
+		sum_NP = a[2], bed_NP = a[0];
+	} else {
+		warn("ERROR: gVCF support is not implemented yet. Option -b is required for now.");
+		exit(1);
+	}
+
+	function read_vcf(fn)
+	{
+		var file = new File(fn);
+		var buf = new Bytes();
+		var sharp = '#'.charCodeAt(0);
+		var reg = {}, idx = {};
+
+		while (file.readline(buf) >= 0) {
+			if (buf[0] == sharp) continue; // skip header lines
+			var t = buf.toString().split("\t");
+			if (t[6] != '.' && t[6] != 'PASS') continue; // skip filtered variants
+			var a = b8_parse_vcf1(t);
+			if (reg[t[0]] == null) reg[t[0]] = [];
+			for (var i = 0; i < a.length; ++i) {
+				var x = a[i], end;
+				if (indel && x[4] == 0) continue;
+				if (!indel && x[4] != 0) continue;
+				end = x[3] + 1 + (x[1] == 3? -x[4] : 0);
+				reg[t[0]].push([x[3], end, x[4]]);
+			}
+		}
+
+		buf.destroy();
+		file.close();
+		for (var chr in reg)
+			idx[chr] = intv_ovlp(reg[chr]);
+		return [reg, idx];
+	}
+
+	warn("Reading "+args[getopt.ind]+"...");
+	var truth = read_vcf(args[getopt.ind]);
+	warn("Reading "+args[getopt.ind+1]+"...");
+	var call  = read_vcf(args[getopt.ind+1]);
+	var TP = 0, FP = 0, FN = 0;
+
+	warn("Counting TP and FN...");
+	for (var chr in truth[0]) {
+		var chr_NP = bed_NP[chr], chr_call = call[1][chr];
+		if (chr_NP == null) continue; // not in N+P
+		var x = truth[0][chr];
+		for (var i = 0; i < x.length; ++i) {
+			if (chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
+			var start = x[i][0] - max_d, end = x[i][1] + max_d;
+			if (start < 0) start = 0;
+			if (chr_call != null && chr_call(start, end) != null) ++TP;
+			else ++FN;
+		}
+	}
+
+	warn("Counting FP...");
+	for (var chr in call[0]) {
+		var chr_NP = bed_NP[chr], chr_truth = truth[1][chr];
+		if (chr_NP == null) continue; // not in N+P
+		var x = call[0][chr];
+		for (var i = 0; i < x.length; ++i) {
+			if (chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
+			var start = x[i][0] - max_d, end = x[i][1] + max_d;
+			if (start < 0) start = 0;
+			if (chr_call == null && chr_truth(start, end) == null) ++FP;
+		}
+	}
+
+	var type = indel? 'INDEL' : 'SNP';
+	print("distEval", type, "N+P",  sum_NP);
+	print("distEval", type, "TP", TP);
+	print("distEval", type, "FN", FN);
+	print("distEval", type, "FP", FP);
+}
+
 /***********************
  *** Main() function ***
  ***********************/
@@ -1138,6 +1249,7 @@ function main(args)
 	else if (cmd == 'bedovlp') b8_bedovlp(args);
 	else if (cmd == 'bedcmpm') b8_bedcmpm(args);
 	else if (cmd == 'cbs') b8_cbs(args);
+	else if (cmd == 'distEval') b8_distEval(args);
 	else warn("Unrecognized command");
 }
 
