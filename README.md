@@ -102,11 +102,17 @@ The `distEval` command evaluates a call set against a [GIAB][giab]-like truth
 dataset, which consists of one BED file giving high-confidence regions and one
 VCF file giving variants. To evaluate SNPs:
 ```sh
-k8 hapdip.js distEval -d0 -b truth-reg.bed truth.vcf call.vcf
+# download GIAB truth dataset
+wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/GIAB/N+P.auto.bed.gz
+wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/GIAB/P.vcf.gz
+# download an evaluation call set
+wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/vcf-flt/NA12878.mem.hc.flt.vcf.gz
+# evaluate
+k8 hapdip.js distEval -d0 -b N+P.auto.bed.gz P.vcf.gz NA12878.mem.hc.flt.vcf.gz
 ```
 To evaluate INDELs:
 ```sh
-k8 hapdip.js distEval -Id10 -b truth-reg.bed truth.vcf call.vcf
+k8 hapdip.js distEval -Id10 -b N+P.auto.bed.gz P.vcf.gz NA12878.mem.hc.flt.vcf.gz
 ```
 The output looks like:
 ```
@@ -119,7 +125,8 @@ where `N+P` gives the total length of the non-overlapping regions in
 `truth-reg.bed`, `TP` is the number of true SNPs (INDELs) within *d*-bp from a
 called SNP (INDEL), `FN` the number of true SNPs (INDELs) *not* within *d*-bp
 from any called SNPs (INDELs) and `FP` the number of called SNPs (INDELs) *not*
-within *d*-bp from any true SNPs (INDELs).
+within *d*-bp from any true SNPs (INDELs). Note that the evaluation script
+always breaks MNPs and complex variants into atomic events.
 
 
 [varcmp]: http://bioinformatics.oxfordjournals.org/content/early/2014/07/03/bioinformatics.btu356.abstract
