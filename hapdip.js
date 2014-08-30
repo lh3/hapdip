@@ -1115,18 +1115,22 @@ function b8_eval(args)
 
 function b8_distEval(args)
 {
-	var c, fn_bed = null, max_d = 10, indel = false;
-	while ((c = getopt(args, "b:d:I")) != null) {
+	var c, fn_bed = null, max_d = 10, eval_snp = true, eval_indel = true, show_err = false;
+	while ((c = getopt(args, "b:d:ISe")) != null) {
 		if (c == 'b') fn_bed = getopt.arg;
 		else if (c == 'd') max_d = parseInt(getopt.arg);
-		else if (c == 'I') indel = true;
+		else if (c == 'S') eval_snp = false;
+		else if (c == 'I') eval_indel = false;
+		else if (c == 'e') show_err = true;
 	}
 	if (getopt.ind + 2 > args.length) {
 		print("");
 		print("Usage:   k8 hapdip.js deval [options] <P.vcf> <call.vcf>\n");
 		print("Options: -d INT     max distance ["+max_d+"]");
 		print("         -b FILE    N+P regions, required unless P.vcf is a gVCF [null]");
-		print("         -I         evaluate INDELs (SNP is the default)");
+		print("         -S         don't evaluate SNPs");
+		print("         -I         don't evaluate INDELs");
+		print("         -e         print FN/FP (fmt: chr, start, end, indel, FN/FP)");
 		print("");
 		exit(1);
 	}
@@ -1156,9 +1160,9 @@ function b8_distEval(args)
 			if (reg[t[0]] == null) reg[t[0]] = [];
 			for (var i = 0; i < a.length; ++i) {
 				var x = a[i], end;
-				if (indel && x[4] == 0) continue;
-				if (!indel && x[4] != 0) continue;
-				end = x[3] + 1 + (x[1] == 3? -x[4] : 0);
+				if (!eval_indel && x[4] != 0) continue;
+				if (!eval_snp   && x[4] == 0) continue;
+				end = x[3] + 1 + (x[4] < 0? -x[4] : 0);
 				reg[t[0]].push([x[3], end, x[4]]);
 			}
 		}
@@ -1174,7 +1178,7 @@ function b8_distEval(args)
 	var truth = read_vcf(args[getopt.ind]);
 	warn("Reading "+args[getopt.ind+1]+"...");
 	var call  = read_vcf(args[getopt.ind+1]);
-	var TP = 0, FP = 0, FN = 0;
+	var TP = [0,0], FP = [0,0], FN = [0,0];
 
 	warn("Counting TP and FN...");
 	for (var chr in truth[0]) {
@@ -1183,10 +1187,12 @@ function b8_distEval(args)
 		var x = truth[0][chr];
 		for (var i = 0; i < x.length; ++i) {
 			if (chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
-			var start = x[i][0] - max_d, end = x[i][1] + max_d;
+			var start = x[i][0] - max_d, end = x[i][1] + max_d, type = x[i][2] == 0? 0 : 1;
 			if (start < 0) start = 0;
-			if (chr_call != null && chr_call(start, end) != null) ++TP;
-			else ++FN;
+			if (chr_call == null || chr_call(start, end) == null) {
+				++FN[type];
+				if (show_err) print(chr, x[i][0], x[i][1], x[i][2], 'FN');
+			} else ++TP[type];
 		}
 	}
 
@@ -1197,17 +1203,29 @@ function b8_distEval(args)
 		var x = call[0][chr];
 		for (var i = 0; i < x.length; ++i) {
 			if (chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
-			var start = x[i][0] - max_d, end = x[i][1] + max_d;
+			var start = x[i][0] - max_d, end = x[i][1] + max_d, type = x[i][2] == 0? 0 : 1;
 			if (start < 0) start = 0;
-			if (chr_call == null && chr_truth(start, end) == null) ++FP;
+			if (chr_call == null && chr_truth(start, end) == null) {
+				++FP[type];
+				if (show_err) print(chr, x[i][0], x[i][1], x[i][2], 'FP');
+			}
 		}
 	}
 
-	var type = indel? 'INDEL' : 'SNP';
-	print("distEval", type, "N+P",  sum_NP);
-	print("distEval", type, "TP", TP);
-	print("distEval", type, "FN", FN);
-	print("distEval", type, "FP", FP);
+	if (!show_err) {
+		if (eval_snp) {
+			print("distEval", 'SNP', "N+P",sum_NP);
+			print("distEval", 'SNP', "TP", TP[0]);
+			print("distEval", 'SNP', "FN", FN[0]);
+			print("distEval", 'SNP', "FP", FP[0]);
+		}
+		if (eval_indel) {
+			print("distEval", 'INDEL', "N+P",sum_NP);
+			print("distEval", 'INDEL', "TP", TP[1]);
+			print("distEval", 'INDEL', "FN", FN[1]);
+			print("distEval", 'INDEL', "FP", FP[1]);
+		}
+	}
 }
 
 /***********************
@@ -1219,6 +1237,7 @@ function main(args)
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
+		print("          distEval distance-based VCF comparison");
 		print("");
 		print("          deovlp   remove overlaps between variants");
 		print("          upd1gt   update genotypes in a single-sample VCF");
