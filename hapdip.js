@@ -1128,9 +1128,13 @@ function b8_distEval(args)
 		print("Usage:   k8 hapdip.js deval [options] <P.vcf> <call.vcf>\n");
 		print("Options: -d INT     max distance ["+max_d+"]");
 		print("         -b FILE    N+P regions, required unless P.vcf is a gVCF [null]");
-		print("         -S         don't evaluate SNPs");
-		print("         -I         don't evaluate INDELs");
+		print("         -S         skip SNPs");
+		print("         -I         skip INDELs");
 		print("         -e         print FN/FP (fmt: chr, start, end, indel, FN/FP)");
+		print("");
+		print("Note: By default, if a called SNP is close to a true INDEL but no other");
+		print("      true SNPs, it is still considered to be correct. When -S or -I is");
+		print("      applied, the above case is counted as an error.");
 		print("");
 		exit(1);
 	}
