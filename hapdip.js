@@ -1081,7 +1081,7 @@ function b8_distEval(args)
 			if (chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
 			var start = x[i][0] - max_d, end = x[i][1] + max_d, type = x[i][2] == 0? 0 : 1;
 			if (start < 0) start = 0;
-			if (chr_call == null && chr_truth(start, end) == null) {
+			if (chr_truth == null || chr_truth(start, end) == null) {
 				++FP[type];
 				if (show_err) print(chr, x[i][0], x[i][1], x[i][2], 'FP');
 			}
