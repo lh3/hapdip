@@ -613,133 +613,6 @@ function b8_deovlp(args)
 	warn(n + " variants have been dropped");
 }
 
-/************************************
- *** Convert pileup output to var ***
- ************************************/
-
-function b8_plp2var(args)
-{
-	var file = args.length? new File(args[0]) : new File();
-	var buf = new Bytes();
-
-	while (file.readline(buf) >= 0) {
-		var t = buf.toString().split("\t");
-		if (!/[ACGTacgt]/.test(t[4])) continue;
-		t[2] = t[2].toUpperCase();
-		var i = 0, j = 0;
-		var alleles = {}, cnt = [], sum = 0;
-		while (i < t[4].length && j < t[5].length) {
-			var b = t[4].charAt(i);
-			if (b == '$') { ++i; continue; }
-			if (b == '^') { i += 2; continue; }
-			if (b == '*') { ++i, ++j; continue; }
-
-			// determine the allele sequence
-			var a, q, forward;
-			var match = /[.,A-Za-z]([+-](\d+)[A-Za-z])?/.exec(t[4].substr(i));
-			if (b == '.') b = t[2].toUpperCase();
-			else if (b == ',') b = t[2].toLowerCase();
-			forward = (b.charCodeAt(0) < 97);
-			q = t[5].charCodeAt(j) - 33;
-			var l_int = 0, l = 0;
-			if (match[1] != null) {
-				l_int = match[2].length + 1; // including +/-
-				l = parseInt(match[2]);
-				a = (b + t[4].substr(i + 1, l_int +l)).toUpperCase();
-			} else a = b.toUpperCase();
-			i += 1 + l_int + l;
-			++j;
-
-			// count
-			var ci;
-			if (alleles[a] == null) alleles[a] = cnt.length, cnt.push([a, 0, 0, 0, 0]);
-			ci = alleles[a];
-			++cnt[ci][forward? 1 : 2];
-			cnt[ci][forward? 3 : 4] += q;
-			sum += q;
-		}
-
-		var out = [t[0], t[1], t[2], sum, cnt.length];
-		for (var i = 0; i < cnt.length; ++i)
-			for (var j = 0; j < 5; ++j)
-				out.push(cnt[i][j]);
-		print(out.join("\t"));
-	}
-
-	buf.destroy();
-	file.close();
-}
-
-/*************************************
- *** Convert plp2var output to VCF ***
- *************************************/
-
-function b8_var2vcf(args)
-{
-	var c, qdp = false;
-	while ((c = getopt(args, 'q')) != null)
-		if (c == 'q') qdp = true;
-	var file = args.length > getopt.ind? new File(args[getopt.ind]) : new File();
-	var buf = new Bytes();
-
-	while (file.readline(buf) >= 0) {
-		var max = 0, match, max_del = '';
-		var t = buf.toString().split("\t");
-		t[3] = parseInt(t[3]); t[4] = parseInt(t[4]);
-		for (var i = 0; i < t[4]; ++i) {
-			var match = /^[A-Z]-(\d+)([A-Z]+)/.exec(t[5*(i+1)]);
-			if (match != null && max < parseInt(match[1]))
-				max = parseInt(match[1]), max_del = match[2];
-		}
-		var alt = [], dp4 = [0, 0, 0, 0], q = [], qs4 = [0, 0, 0, 0];
-		for (var i = 0; i < t[4]; ++i) {
-			var a = t[5*(i+1)], match;
-			if (a == t[2]) {
-				dp4[0] += parseInt(t[5*(i+1) + 1]);
-				dp4[1] += parseInt(t[5*(i+1) + 2]);
-				qs4[0] += parseInt(t[5*(i+1) + 3]);
-				qs4[1] += parseInt(t[5*(i+1) + 4]);
-				continue; // identical to the reference
-			} else {
-				dp4[2] += parseInt(t[5*(i+1) + 1]);
-				dp4[3] += parseInt(t[5*(i+1) + 2]);
-				qs4[2] += parseInt(t[5*(i+1) + 3]);
-				qs4[3] += parseInt(t[5*(i+1) + 4]);
-			}
-			if ((match = /^[A-Z]\+(\d+)([A-Z]+)/.exec(a)) != null) { // insertion
-				alt.push(t[2] + match[2] + max_del);
-			} else if ((match = /^[A-Z]-(\d+)([A-Z]+)/.exec(a)) != null) { // deletion
-				alt.push(t[2] + max_del.substr(parseInt(match[1])));
-			} else { // SNP
-				alt.push(a);
-			}
-			q.push(qs4[2] + qs4[3]);
-		}
-		if (alt.length == 0) continue; // not a variant
-		var alt_sum = 0;
-		for (var i = 0; i < q.length; ++i) alt_sum += q[i];
-		q.unshift(qs4[0] + qs4[1]);
-		var gt;
-		if (alt.length == 1 && qs4[0] + qs4[1] == 0) {
-			gt = "1/1";
-		} else {
-			var max = -1, max2 = -1, max_i = -1, max2_i = -1;
-			for (var i = 0; i < q.length; ++i) {
-				if (max < q[i]) max2 = max, max2_i = max_i, max = q[i], max_i = i;
-				else if (max2 < q[i]) max2 = q[i], max2_i = i;
-			}
-			if (max_i > max2_i) max_i ^= max2_i, max2_i ^= max_i, max_i ^= max2_i;
-			gt = max_i + "/" + max2_i;
-		}
-		var info = qdp? 'DP4='+qs4.join(",")+';RD4='+dp4.join(",") : 'DP4='+dp4.join(",")+';QS4='+qs4.join(",");
-		var out = [t[0], t[1], '.', t[2] + max_del, alt.join(","), alt_sum, '.', info, 'GT', gt];
-		print(out.join("\t"));
-	}
-
-	buf.destroy();
-	file.close();
-}
-
 /*************************************
  * Convert CG's masterVarBeta to VCF *
  ************************************/
@@ -841,14 +714,13 @@ function b8_anno(args)
 		var depth = m != null? parseInt(m[1]) : -1; // get read depth
 		var dp4 = [], dp_ref = null, dp_alt = null, dp_alt_for = null, dp_alt_rev = null, FS = null;
 		var m4 = [];
-		if (/RD4=\d+,\d+,\d+,\d+/.test(t[7]) || /QS4=\d+,\d+,\d+,\d+/.test(t[7])) { // fermi2 + mpileup + vcf8/plp2var + vcf8/var2vcf
-			if (/RD4=/.test(t[7])) m = /DP4=(\d+),(\d+),(\d+),(\d+)/.exec(t[7]); // in this case, DP4 keeps the read depth
-			else m = /QS4=(\d+),(\d+),(\d+),(\d+)/.exec(t[7]); // in this case, QS4 keeps the read depth
-			for (var j = 1; j <= 4; ++j) dp4[j-1] = parseInt(m[j]);
-			dp_ref = dp4[0] + dp4[1];
-			dp_alt = dp4[2] + dp4[3];
-			depth = dp_ref + dp_alt;
-			dp4 = []; // unset dp4[] as we should not filter based on this false DP4
+		if (/^GT:SQ/.test(t[8])) { // htsbox pileup
+			if ((m = /^\d+\/\d+:(\d+(,\d+)+)/.exec(t[9])) != null) {
+				var s = m[1].split(",");
+				dp_ref = parseInt(s[0]); dp_alt = 0;
+				for (var j = 1; j < s.length; ++j)
+					dp_alt += parseInt(s[j]);
+			}
 		} else if ((m = /DP4=(\d+),(\d+),(\d+),(\d+)/.exec(t[7])) != null) { // samtools
 			for (var j = 1; j <= 4; ++j) dp4[j-1] = parseInt(m[j]);
 		} else if ((m = /CGDP2=(\d+),(\d+)/.exec(t[7])) != null) { // CG vcf converted by hapdip.js cg2vcf
@@ -913,7 +785,7 @@ function b8_anno(args)
 		for (var i = 0; i < values.length; ++i)
 			if (values[i] != null)
 				extra_info.push(labels[i] + '=' + values[i]);
-		t[7] = extra_info.join(';') + ';' + t[7];
+		t[7] = extra_info.join(';') + (t[7] == "."? '' : + ';' + t[7]);
 		if (clear_flt) t[6] = '.';
 		if (depth_only) print(t[0], t[1], depth);
 		else print(t.join("\t"));
@@ -1249,8 +1121,6 @@ function main(args)
 		print("          filter   filter anno'd VCF");
 		print("");
 		print("          qst1     vcf stats stratified by QUAL, one sample only");
-		print("          plp2var  extract alleles from pileup output");
-		print("          var2vcf  convert plp2var output to VCF");
 		print("          cg2vcf   convert CG's masterVarBeta to VCF");
 		print("          bedovlp  count lines overlapping in a second bed");
 		print("          bedcmpm  compare multiple sorted BED files");
@@ -1266,8 +1136,6 @@ function main(args)
 	else if (cmd == 'anno') b8_anno(args);
 	else if (cmd == 'filter') b8_filter(args);
 	else if (cmd == 'qst1') b8_qst1(args);
-	else if (cmd == 'plp2var') b8_plp2var(args);
-	else if (cmd == 'var2vcf') b8_var2vcf(args);
 	else if (cmd == 'cg2vcf') b8_cg2vcf(args);
 	else if (cmd == 'bedovlp') b8_bedovlp(args);
 	else if (cmd == 'bedcmpm') b8_bedcmpm(args);
