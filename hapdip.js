@@ -714,7 +714,7 @@ function b8_anno(args)
 		var depth = m != null? parseInt(m[1]) : -1; // get read depth
 		var dp4 = [], dp_ref = null, dp_alt = null, dp_alt_for = null, dp_alt_rev = null, FS = null;
 		var m4 = [];
-		if (/^GT:SQ/.test(t[8])) { // htsbox pileup
+		if (/^GT:SR/.test(t[8])) { // htsbox pileup
 			if ((m = /^\d+\/\d+:(\d+(,\d+)+)/.exec(t[9])) != null) {
 				var s = m[1].split(",");
 				dp_ref = parseInt(s[0]); dp_alt = 0;
@@ -904,9 +904,10 @@ function b8_filter(args)
 
 function b8_eval(args)
 {
-	var c, label = "hapdip", in_bed = [], out_bed = [], drop_flt = true, auto_only = false;
-	while ((c = getopt(args, "aFb:B:L:")) != null) {
+	var c, label = "hapdip", in_bed = [], out_bed = [], drop_flt = true, auto_only = false, min_q = 0;
+	while ((c = getopt(args, "aFb:B:L:q:")) != null) {
 		if (c == 'b') in_bed.push(read_bed(getopt.arg)[0]);
+		else if (c == 'q') min_q = parseInt(getopt.arg);
 		else if (c == 'L') label = getopt.arg;
 		else if (c == 'B') out_bed.push(read_bed(getopt.arg)[0]);
 		else if (c == 'F') drop_flt = false;
@@ -916,6 +917,7 @@ function b8_eval(args)
 		print("\nUsage:   k8 hapdip.js [options] <CHM1.vcf> <NA12878.vcf>\n");
 		print("Options: -F        ignore the FILTER field in VCF");
 		print("         -a        only evaluate lines matching /^(chr)?[0-9]+/");
+		print("         -q INT    min base quality");
 		print("         -b FILE   only evaluate variants overlapping BED FILE (can be multi) [null]");
 		print("         -B FILE   exclude variants overlapping BED FILE (can be multi) [null]");
 		print("         -L STR    change label in the output to STR [hapdip]");
@@ -935,6 +937,7 @@ function b8_eval(args)
 			if (buf[0] == sharp) continue; // skip header lines
 			var t = buf.toString().split("\t");
 			if (auto_only && !/^(chr)?[0-9]+$/.test(t[0])) continue;
+			if (parseInt(t[5]) < min_q) continue;
 			if (drop_flt && (t[6] != "." && t[6] != "PASS")) continue;
 			if (in_bed.length || out_bed.length) {
 				var start = parseInt(t[1]);
@@ -1111,7 +1114,8 @@ function b8_distEval(args)
 function main(args)
 {
 	if (args.length == 0) {
-		print("\nUsage:    k8 hapdip.js <command> [arguments]\n");
+		print("\nUsage:    k8 hapdip.js <command> [arguments]");
+		print("Version:  r11\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
