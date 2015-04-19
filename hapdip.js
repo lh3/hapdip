@@ -376,7 +376,10 @@ function b8_parse_vcf1(t) // t = vcf_line.split("\t")
 		var m2 = /FQ=([^;\t]+)/.exec(t[7]);
 		if (m2 == null) gt = /^\.\/\./.test(t[7])? 0 : -1; // special casing CG VCF
 		else gt = parseFloat(m2[1]) > 0? 1 : 0;
-	} else gt = parseInt(match[1]) != parseInt(match[3])? 1 : 0;
+	} else {
+		gt = parseInt(match[1]) != parseInt(match[3])? 1 : 0;
+		if (match[1] == 0 && match[2] == 0) return [];
+	}
 	// get CIGAR for freebayes
 	var m3 = /CIGAR=([^;\t]+)/.exec(t[7]);
 	var cigar = m3 != null? m3[1].split(",") : [];
@@ -803,8 +806,8 @@ function b8_anno(args)
 
 function b8_filter(args)
 {
-	var c, AB = 30, LC = 0, DP_coef = 4, DS = 1, FS = 20, min_q = 30, min_dp = 3, no_header = false, drop_flt = false, auto_only = false;
-	while ((c = getopt(args, "Aa:q:f:HDd:c:s:")) != null) {
+	var c, AB = 30, LC = 0, DP_coef = 4, DS = 1, FS = 20, min_q = 30, min_dp = 3, no_header = false, drop_flt = false, auto_only = false, meanDP = -1;
+	while ((c = getopt(args, "Aa:q:f:HDd:c:s:F:")) != null) {
 		if (c == 'a') AB = parseInt(getopt.arg);
 		else if (c == 'q') min_q = parseFloat(getopt.arg);
 		else if (c == 'f') FS = parseFloat(getopt.arg);
@@ -814,6 +817,7 @@ function b8_filter(args)
 		else if (c == 'c') DP_coef = parseFloat(getopt.arg);
 		else if (c == 's') DS = parseInt(getopt.arg);
 		else if (c == 'A') auto_only = true;
+		else if (c == 'F') meanDP = parseFloat(getopt.arg);
 	}
 
 	if (getopt.ind + 1 > args.length) {
@@ -822,6 +826,7 @@ function b8_filter(args)
 		print("         -q FLOAT   min QUAL ["+min_q+"]");
 		print("         -f FLOAT   max _FS ["+FS+"]");
 		print("         -d INT     min _DP ["+min_dp+"]");
+		print("         -F FLOAT   set meanDP to FLOAT [inferred]");
 		print("         -c FLOAT   set max _DP to 'meanDP + FLOAT * sqrt(meanDP)' ["+DP_coef+"]");
 		print("         -s INT     min _DS ["+DS+"]");
 		print("         -H         suppress the VCF header");
@@ -847,6 +852,7 @@ function b8_filter(args)
 		sum_dp += dp; ++n_dp;
 	}
 	var avg_dp = sum_dp / n_dp;
+	if (meanDP > 0) avg_dp = meanDP;
 	var max_dp = Math.sqrt(avg_dp) * DP_coef + avg_dp;
 	var DP = max_dp;
 	file.close();
