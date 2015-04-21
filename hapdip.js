@@ -788,7 +788,7 @@ function b8_anno(args)
 		for (var i = 0; i < values.length; ++i)
 			if (values[i] != null)
 				extra_info.push(labels[i] + '=' + values[i]);
-		t[7] = extra_info.join(';') + (t[7] == "."? '' : + ';' + t[7]);
+		t[7] = extra_info.join(';') + (t[7] == "." ? '' : ';' + t[7]);
 		if (clear_flt) t[6] = '.';
 		if (depth_only) print(t[0], t[1], depth);
 		else print(t.join("\t"));
