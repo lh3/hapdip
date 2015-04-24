@@ -28,7 +28,7 @@ variants with hard thresholds in [my review][varcmp]. In my experience,
 for single-sample calling, these hard filters are better than GATK's VQSR (see
 the [FermiKit manuscript][fermikit-manu]).
 
-### Covering VCF to unary BED
+### Converting VCF to unary BED
 
 ```sh
 k8 hapdip.js vcf2bed var.vcf.gz > var.bed
