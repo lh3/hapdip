@@ -175,7 +175,7 @@ Math.fisher_exact = function(n11, n12, n21, n22)
  *** Compare two BED files ***
  *****************************/
 
-function read_bed(fn)
+function read_bed(fn, shift)
 {
 	var f = fn == '-'? new File() : new File(fn);
 	var b = new Bytes();
@@ -187,7 +187,7 @@ function read_bed(fn)
 	}
 	var n_rec = 0, sum = 0;
 	for (var chr in reg) {
-		var a = intv_ovlp2(reg[chr])
+		var a = intv_ovlp2(reg[chr], shift)
 		idx[chr] = a[0], sum += a[1];
 		n_rec += reg[chr].length;
 	}
@@ -1059,6 +1059,126 @@ function b8_vcfsub(args)
 	buf.destroy();
 }
 
+function b8_vcfsum(args)
+{
+	var c, beds = [], min_top_sr = 10, no_filter = true, no_gt = false;
+	while ((c = getopt(args, "Gfb:n:")) != null) {
+		if (c == 'n') min_top_sr = parseInt(getopt.arg);
+		else if (c == 'f') no_filter = false;
+		else if (c == 'G') no_gt = true;
+		else if (c == 'b') {
+			var m, label = null, fn = null;
+			if ((m = /([^\s=]+)=(\S+)/.exec(getopt.arg)) != null) {
+				label = m[1];
+				fn = m[2];
+			} else label = fn = getopt.arg;
+			warn('Reading BED file ' + fn + '...');
+			beds.push([label, read_bed(fn, 11)]);
+		}
+	}
+
+	if (args.length == getopt.ind) {
+		print("Usage: k8 hapdip.js vcfsum [options] <htsbox-pileup.vcf>");
+		print("Options:");
+		print("  -b STR=FILE   flag STR in INFO if overlapping regions in BED FILE [null]");
+		print("  -n INT        threshold on the SR filter (effective with -f) [10]");
+		print("  -G            discard genotype fields");
+		print("  -f            add LOWAD and NONVAR to FILTER");
+		exit(1);
+	}
+
+	warn('Processing VCF...');
+
+	var new_lines = "";
+	new_lines += '##FILTER=<ID=LOWAD,Description="TOPAD < ' + min_top_sr + '">\n';
+	new_lines += '##FILTER=<ID=NONVAR,Description="not a variant site">\n';
+	for (var i = 0; i < beds.length; ++i)
+		new_lines += '##INFO=<ID=' + beds[i][0] + ',Number=0,Type=Flag>\n';
+	new_lines += '##INFO=<ID=TOPAD,Number=R,Type=Integer,Description="best AD across samples">\n';
+	new_lines += '##INFO=<ID=AD,Number=R,Type=Integer,Description="allelic depths">\n';
+	new_lines += '##INFO=<ID=CA,Number=R,Type=Integer,Description="count of reference and alternate alleles">\n';
+	new_lines += '##INFO=<ID=CG,Number=G,Type=Integer,Description="count of genotypes">';
+
+	var file = new File(args[getopt.ind]);
+	var buf = new Bytes();
+
+	while (file.readline(buf) >= 0) {
+		var line = buf.toString();
+		if (line.charAt(0) == '#') {
+			if (line.charAt(1) != '#') {
+				print(new_lines);
+				if (no_gt) line = line.split("\t", 8).join("\t");
+			}
+			print(line);
+			continue;
+		}
+		var t = line.split("\t");
+		var gt = null, sr = null;
+		var s = t[8].split(":");
+		for (var i = 0; i < s.length; ++i)
+			if (s[i] == 'GT') gt = i;
+			else if (s[i] == 'AD') sr = i;
+		var ACA = [], SR = [], topSR = [], CG = []; // for historical reasons, "SR"=="AD"
+		var n_alleles = t[4].split(",").length + 1, n_gt = Math.floor(n_alleles * (n_alleles + 1) / 2 + .499);
+		for (var i = 0; i < n_alleles; ++i) ACA[i] = SR[i] = topSR[i] = 0;
+		for (var i = 0; i < n_gt; ++i) CG[i] = 0;
+		for (var j = 9; j < t.length; ++j) {
+			s = t[j].split(":");
+			if (gt != null) {
+				var m;
+				if ((m = /(\.|\d+)[\/\|](\.|\d+)/.exec(s[gt])) != null) {
+					var h1 = m[1] != '.'? parseInt(m[1]) : -1;
+					var h2 = m[2] != '.'? parseInt(m[2]) : -1;
+					if (h1 >= 0) ++ACA[h1];
+					if (h2 >= 0) ++ACA[h2];
+					if (h1 >= 0 && h2 >= 0) {
+						var tmp;
+						if (h1 > h2) tmp = h1, h1 = h2, h2 = tmp;
+						tmp = Math.floor(h1 * (h1 + 1) / 2 + h2 + .499);
+						++CG[tmp];
+					}
+				}
+			}
+			if (sr != null) {
+				var v = s[sr].split(",");
+				for (var k = 0; k < v.length; ++k) {
+					var u = parseInt(v[k]);
+					SR[k] += u;
+					topSR[k] = topSR[k] > u? topSR[k] : u;
+				}
+			}
+		}
+		// set INFO
+		if (t[7] == '.') t[7] = '';
+		else t[7] += ';';
+		t[7] += 'CA=' + ACA.join(",") + ';CG=' + CG.join(",");
+		if (sr != null) t[7] += ';AD=' + SR.join(",") + ';TOPAD=' + topSR.join(",");
+		// test BED
+		for (var i = 0; i < beds.length; ++i) {
+			var start = parseInt(t[1]) - 1;
+			if (beds[i][1][t[0]] && beds[i][1][t[0]](start, start + t[3].length) != null)
+				t[7] += ';' + beds[i][0];
+		}
+		// set FILTER
+		if (!no_filter) {
+			var alt_cnt = 0, flt = '', max_topSR = 0;
+			for (var i = 1; i < ACA.length; ++i)
+				alt_cnt += ACA[i], max_topSR = max_topSR > topSR[i]? max_topSR : topSR[i];
+			if (alt_cnt == 0) flt = 'NONVAR';
+			if (sr != null && max_topSR < min_top_sr)
+				flt = flt == ''? 'LOWAD' : flt + ';LOWAD';
+			if (t[6] == '.' || t[6] == 'PASS') t[6] = flt == ''? 'PASS' : flt;
+			else if (flt != '') t[6] += ';' + flt;
+		}
+		// print out
+		if (no_gt) t.length = 8;
+		print(t.join("\t"));
+	}
+
+	buf.destroy();
+	file.close();
+}
+
 /**********************************
  *** Evaluate CHM1-NA12878 VCFs ***
  **********************************/
@@ -1276,7 +1396,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r18\n");
+		print("Version:  r19\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
@@ -1288,6 +1408,8 @@ function main(args)
 		print("          qst1     vcf stats stratified by QUAL, one sample only");
 		print("          vcf2bed  convert VCF to unary BED");
 		print("          vcfsub   subset, reorder and rename samples in VCF");
+		print("          vcfsum   write total allele/genotype counts and depths in INFO");
+		print("");
 		print("          cg2vcf   convert CG's masterVarBeta to VCF");
 		print("          bedovlp  count lines overlapping in a second bed");
 		print("          bedcmpm  compare multiple sorted BED files");
@@ -1310,6 +1432,7 @@ function main(args)
 	else if (cmd == 'cbs') b8_cbs(args);
 	else if (cmd == 'distEval') b8_distEval(args);
 	else if (cmd == 'vcfsub') b8_vcfsub(args);
+	else if (cmd == 'vcfsum') b8_vcfsum(args);
 	else warn("Unrecognized command");
 }
 
