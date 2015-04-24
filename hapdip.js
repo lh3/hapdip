@@ -1073,7 +1073,7 @@ function b8_vcfsum(args)
 				fn = m[2];
 			} else label = fn = getopt.arg;
 			warn('Reading BED file ' + fn + '...');
-			beds.push([label, read_bed(fn, 11)]);
+			beds.push([label, read_bed(fn, 11)[0]]);
 		}
 	}
 
@@ -1396,7 +1396,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r19\n");
+		print("Version:  r20\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
