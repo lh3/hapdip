@@ -990,6 +990,59 @@ function b8_vcf2bed(args)
 	file.close();
 }
 
+/*******************************************
+ *** subset, replace and reorder samples ***
+ *******************************************/
+
+function b8_vcfsub(args)
+{
+	if (args.length < 2) {
+		print("Usage: k8 vcfsub <list.txt> <in.vcf>");
+		exit(1);
+	}
+	var buf = new Bytes();
+	var file = new File(args[0]);
+	var list_ori = [];
+	while (file.readline(buf) >= 0) {
+		var t = buf.toString().split("\t");
+		if (t.length >= 2) list_ori.push([t[0], t[1]]);
+		else list_ori.push([t[0], null]);
+	}
+	file.close();
+
+	file = new File(args[1]);
+	var map = [], list = [], replace = true;
+	while (file.readline(buf) >= 0) {
+		var line = buf.toString();
+		if (line.charAt(0) == '#') {
+			if (line.charAt(1) != '#') {
+				var t = line.split("\t"), hash = {};
+				// get the intersection of list_ori[] and the list in VCF
+				for (var i = 9; i < t.length; ++i)
+					hash[t[i]] = i;
+				for (var j = 0; j < list_ori.length; ++j)
+					if (hash[list_ori[j][0]] != null)
+						list.push(list_ori[j]);
+				// generate map[]
+				for (var j = 0; j < list.length; ++j)
+					map.push(hash[list[j][0]]);
+				// reorder samples
+				var s = t.slice(0, 9);
+				for (var j = 0; j < list.length; ++j)
+					s.push(list[j][list[j][1] == null? 0 : 1]);
+				print(s.join("\t"));
+			} else print(line);
+		} else {
+			var t = line.split("\t"), s = t.slice(0, 9);
+			for (var j = 0; j < map.length; ++j)
+				s.push(t[map[j]]);
+			print(s.join("\t"));
+		}
+	}
+	file.close();
+	buf.destroy();
+}
+
 /**********************************
  *** Evaluate CHM1-NA12878 VCFs ***
  **********************************/
@@ -1207,7 +1260,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r11\n");
+		print("Version:  r17\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
@@ -1218,6 +1271,7 @@ function main(args)
 		print("");
 		print("          qst1     vcf stats stratified by QUAL, one sample only");
 		print("          vcf2bed  convert VCF to unary BED");
+		print("          vcfsub   subset, reorder and rename samples in VCF");
 		print("          cg2vcf   convert CG's masterVarBeta to VCF");
 		print("          bedovlp  count lines overlapping in a second bed");
 		print("          bedcmpm  compare multiple sorted BED files");
@@ -1239,6 +1293,7 @@ function main(args)
 	else if (cmd == 'bedcmpm') b8_bedcmpm(args);
 	else if (cmd == 'cbs') b8_cbs(args);
 	else if (cmd == 'distEval') b8_distEval(args);
+	else if (cmd == 'vcfsub') b8_vcfsub(args);
 	else warn("Unrecognized command");
 }
 
