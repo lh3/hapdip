@@ -69,7 +69,7 @@ function intv_ovlp2(intv, bits)
 	}
 	return [function(_b, _e) { // closure
 		var x = _b >> bits;
-		if (x > max) return false;
+		if (x > max) return null;
 		var off = idx[x];
 		if (off == null) {
 			var i;
@@ -717,14 +717,36 @@ function b8_anno(args)
 		var depth = m != null? parseInt(m[1]) : -1; // get read depth
 		var dp4 = [], dp_ref = null, dp_alt = null, dp_alt_for = null, dp_alt_rev = null, FS = null;
 		var m4 = [];
-		if (/^GT:SR/.test(t[8])) { // htsbox pileup
-			if ((m = /^\d+\/\d+:(\d+(,\d+)+)/.exec(t[9])) != null) {
-				var s = m[1].split(",");
-				dp_ref = parseInt(s[0]); dp_alt = 0;
-				for (var j = 1; j < s.length; ++j)
-					dp_alt += parseInt(s[j]);
+		// get generic depth information
+		if (t[9] != null && t[8] != null) {
+			var AD = null, ADF = null, ADR = null, DP = null;
+			var fmt = t[8].split(":");
+			for (var i = 0; i < fmt.length; ++i) {
+				if (fmt[i] == 'AD') AD = i;
+				else if (fmt[i] == 'ADF') ADF = i;
+				else if (fmt[i] == 'ADR') ADR = i;
+				else if (fmt[i] == 'DP') DP = i;
 			}
-		} else if ((m = /DP4=(\d+),(\d+),(\d+),(\d+)/.exec(t[7])) != null) { // samtools
+			if (ADF != null && ADR != null) {
+				var s = t[9].split(":");
+				var cf = s[ADF].split(",");
+				var cr = s[ADR].split(",");
+				dp4 = [parseInt(cf[0]),parseInt(rf[0]),0,0];
+				for (var i = 1; i < cf.length; ++i)
+					dp4[2] += parseInt(cf[i]), dp4[3] += parseInt(cr[i]);
+			} else if (AD != null) {
+				var a = t[9].split(":")[AD].split(",");
+				dp_ref = parseInt(a[0]), dp_alt = 0;
+				for (var i = 1; i < a.length; ++i)
+					dp_alt += parseInt(a[i]);
+			} else if (DP != null) {
+				depth = parseInt(t[9].split(":")[DP]);
+			}
+		}
+		if ((m = /[;\t]FS=([^\t;]+)/.exec(t[7])) != null)
+			FS = Math.pow(10, -.1 * parseFloat(m[1]));
+		// caller specific depth
+		if ((m = /DP4=(\d+),(\d+),(\d+),(\d+)/.exec(t[7])) != null) { // samtools
 			for (var j = 1; j <= 4; ++j) dp4[j-1] = parseInt(m[j]);
 		} else if ((m = /CGDP2=(\d+),(\d+)/.exec(t[7])) != null) { // CG vcf converted by hapdip.js cg2vcf
 			dp_ref = parseInt(m[1]);
@@ -732,12 +754,6 @@ function b8_anno(args)
 		} else if ((m4[0] = /SRF=(\d+)/.exec(t[7])) != null && (m4[1] = /SRR=(\d+)/.exec(t[7])) != null
 				&& (m4[2] = /SAF=(\d+)/.exec(t[7])) != null && (m4[3] = /SAR=(\d+)/.exec(t[7])) != null) { // freebayes; in four separate tags
 			for (var j = 0; j < 4; ++j) dp4[j] = parseInt(m4[j][1]);
-		} else if (/GT:AD/.test(t[8])) { // GATK; no strand information
-			m = /^\d\/\d:(\d+),(\d+)(,(\d+))?/.exec(t[9]);
-			dp_ref = parseInt(m[1]);
-			dp_alt = parseInt(m[2]) + (m[4] != null? parseInt(m[4]) : 0);
-			if ((m = /[;\t]FS=([^\t;]+)/.exec(t[7])) != null)
-				FS = Math.pow(10, -.1 * parseFloat(m[1]));
 		} else if ((m = /NF=([\d,]+).*NR=([\d,]+).*TCF=(\d+).*TCR=(\d+)/.exec(t[7])) != null) { // Platypus; in four tags, but I don't really know what they mean...
 			var m1 = m[1].split(",");
 			var m2 = m[2].split(",");
@@ -757,7 +773,7 @@ function b8_anno(args)
 				if (dp4[0] < 0) dp4[0] = 0;
 				if (dp4[1] < 0) dp4[1] = 0;
 			}
-		} else warn("Unrecognized format at line " + lineno + ":\n" + buf.toString());
+		}
 
 		if (dp4.length) dp_ref = dp4[0] + dp4[1], dp_alt_for = dp4[2], dp_alt_rev = dp4[3], dp_alt = dp_alt_for + dp_alt_rev;
 		if (dp_alt != null && dp_ref != null) depth = dp_alt + dp_ref;
@@ -1260,7 +1276,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r17\n");
+		print("Version:  r18\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
