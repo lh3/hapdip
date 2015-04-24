@@ -1,138 +1,99 @@
-## Getting started
+## Introduction
 
-You can copy-paste the following command lines in your terminal from a Linux
-machine (or replace `k8-linux` with `k8-darwin` on Mac):
+This project started as a set of [companion scripts][script] used in [my
+review][varcmp] (or [preprint][arxiv]). After the publication, I polished
+scripts and separated them out in this independent repo. With time, the project
+grows with more functionalities particularly focusing on VCF processing. This
+README gives an overview of key routines. [README-hapdip.md][hapdip-md]
+explains the original hapdip benchmark in more details.
+
+As most of my programs, this `hapdip.js` script consists of multiple
+subcommands. It is very fast and seamlessly reads both plain and gzip'd text
+files. In addition, for VCF processing, the script properly breaks MNPs and
+complex events down to atomic SNPs and INDELs. It is aware of the CIGAR INFO
+field produced by [FreeBayes][freebayes].
+
+## Functionalities
+
+### Filtering single-sample VCF files
+
+VCF produced from whole-genome deep resequencing can be filtered with:
 ```sh
-# download the k8 executable
-wget -O- http://sourceforge.net/projects/biobin/files/unclassified/k8-0.2.1.tar.bz2/download \
-	| bzip2 -dc | tar xf -
-# download test VCF files
-wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/vcf-flt/CHM1.mem.hc.flt.vcf.gz
-wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/vcf-flt/NA12878.mem.hc.flt.vcf.gz
-# acquire the evaluation script
-git clone https://github.com/lh3/hapdip.git
-# evaluate (it is fast, 0.5 minute)
-./k8-linux hapdip/hapdip.js eval CHM1.mem.hc.flt.vcf.gz NA12878.mem.hc.flt.vcf.gz
+k8 hapdip.js deovlp raw.vcf.gz | k8 hapdip.js anno | gzip -1 > anno.vcf.gz
+k8 hapdip.js filter anno.vcf.gz | bgzip > filtered.vcf.gz
 ```
+Here `deovlp` chooses the best VCF record among overlapping records, `anno`
+adds generic depth-related INFO fields and `filter` uses the fields to filter
+variants with hard thresholds in [my review][varcmp]. In my experience,
+for single-sample calling, these hard filters are better than GATK's VQSR (see
+the [FermiKit manuscript][fermikit-manu]).
 
-The output is
-```
-hapdip  SNP     FP      39167
-hapdip  SNP     TP      2095440
-hapdip  INDEL   FP      46043
-hapdip  INDEL   TP      460382
-hapdip  INDEL   FP      21319   INDEL-1bp
-hapdip  INDEL   TP      196706  INDEL-1bp
-```
+### Covering VCF to unary BED
 
-Or to evaluate excluding variants overlapping low-complexity regions (LCRs;
-replace `-B` with `-b` to evaluate in LCRs only):
 ```sh
-wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/LCR-hs37d5.bed.gz
-./k8-linux hapdip/hapdip.js eval -B LCR-hs37d5.bed.gz \
-	CHM1.mem.hc.flt.vcf.gz NA12878.mem.hc.flt.vcf.gz
+k8 hapdip.js vcf2bed var.vcf.gz > var.bed
 ```
-The output is (note the much lower FP for INDELs)
-```
-hapdip  SNP     FP      29882
-hapdip  SNP     TP      2028817
-hapdip  INDEL   FP      5003
-hapdip  INDEL   TP      189720
-hapdip  INDEL   FP      1767    INDEL-1bp
-hapdip  INDEL   TP      98315   INDEL-1bp
-```
+In the output, each alternate allele takes one BED line, which consists of chr,
+start, end, allele length (0 for SNPs, positive for insertions and negative for
+deletions), ref allele, alt allele, count of alt allele, total called
+haplotypes and filters in VCF. Complex events are broken down to atomic SNPs
+and INDELs.
 
-If you want to try a new variant caller, you need to download the reference
-genome and the BWA-MEM alignments with
+### Subsetting VCF and reordering/replacing sample names
+
 ```sh
-wget ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz
-wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/CHM1.mem.bam
-wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/NA12878.mem.bam
+echo -e "old2\tnew1\nold4\tnew2" > list.txt
+k8 hapdip.js vcfsub list.txt var.vcf > var-sub.vcf
 ```
-The alignments, 240GB in total, contain all the raw reads. The CHM1 alignment
-has been processed with [MarkDuplicates][dedup].
+The command chooses a subset of samples and reorder the samples according to
+the input. If the input `list.txt` has a second column, the command replace
+the old sample name in the first column to the new one on the second column.
 
-## Methodology
+### Evaluating calls from the CHM1-NA12878 pair
 
-HapDip is a benchmark suite for evaluating the accuracy of small variant
-calling. The core evaluation command `hapdip.js eval` takes two [VCF files][vcf]
-as input, one called from the CHM1 haploid genome and the other from the NA12878
-diploid genome ([link to data][ftp]). If we assume CHM1 is truly haploid,
-heterozygotes (hets) called from CHM1 can be considered as false positives (FP).
-Because NA12878 has similar ancestry and is of similar coverage and quality to
-CHM1, we would expect the variant caller to make similar number of errors on the
-NA12878 data. Then the number of false NA12878 het calls should equal the number
-of CHM1 het calls, and true positives (TP) of hets should equal the rest of
-NA12878 hets. This way, we get an estimate of TP and FP without comparing
-variant calls. For details and more discussions, please see [the paper][varcmp]
-or [the preprint][arxiv].
-
-This method not only evaluates variant callers, but also evaluates the reference
-genome. A good genome should yield fewer het calls from CHM1 and more het calls
-from NA12878.
-
-## Usage
-
-This repository contains a single script `hapdip.js` consisting of several
-subcommands. It is modified from [the companion scripts][script] with the paper.
-The script is written in a dialect of Javascript and requires the `k8`
-javascript shell to run. The k8 executables for Linux and Mac are available at
-[the same ftp site][ftp].
-
-For evaluation, we only need to run the `eval` subcommand. It can be simply
-invoked as
 ```sh
-k8 hapdip.js eval CHM1-calls.vcf NA12878-calls.vcf
+k8 hapdip.js eval CHM1.vcf.gz NA12878.vcf.gz
 ```
-Other subcommands filter VCFs or have miscellaneous functionalities.
-In particular, the filtered VCFs at the FTP site were all generated with:
-```sh
-# de-overlap, re-estimate GT and annotate
-k8 hapdip.js deovlp raw.vcf | k8 hapdip.js upd1gt | k8 hapdip.js anno > anno.vcf
-# apply preset hard filters
-k8 hapdip.js filter -A anno.vcf > flt.vcf
-```
-Note that `anno` only works with specific versions of GATK, SAMtools, FreeBayes
-and Platypus as it needs to extract information from caller-specific tags. If
-it does not work for your VCF, please filter with your own program.
+Please see [README-hapdip.md][hapdip-md] for details.
 
-## Add-on: distance-based VCF comparison
+### Evaluating against a truth set
 
-The `distEval` command evaluates a call set against a [GIAB][giab]-like truth
-dataset, which consists of one BED file giving high-confidence regions and one
-VCF file giving variants. To evaluate SNPs:
+The `distEval` command evaluates a call set against a GIAB-like truth dataset,
+which consists of one BED file giving high-confidence regions and one
+VCF file giving variants.
 ```sh
-# download GIAB truth dataset
+# download GIAB-2.18 truth dataset (or from http://bit.ly/giab218)
 wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/GIAB/N+P.auto.bed.gz
 wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/GIAB/P.vcf.gz
 # download an evaluation call set
 wget ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/vcf-flt/NA12878.mem.hc.flt.vcf.gz
 # evaluate
-k8 hapdip.js distEval -d0 -b N+P.auto.bed.gz P.vcf.gz NA12878.mem.hc.flt.vcf.gz
+k8 hapdip.js distEval -d 10 -b N+P.auto.bed.gz P.vcf.gz NA12878.mem.hc.flt.vcf.gz
 ```
-To evaluate INDELs:
-```sh
-k8 hapdip.js distEval -Id10 -b N+P.auto.bed.gz P.vcf.gz NA12878.mem.hc.flt.vcf.gz
-```
-The output looks like:
+The output is:
 ```
 distEval        SNP     N+P     2083729399
-distEval        SNP     TP      2632083
-distEval        SNP     FN      31513
-distEval        SNP     FP      654
+distEval        SNP     TP      2634728
+distEval        SNP     FN      27555
+distEval        SNP     FP      263
+distEval        INDEL   N+P     2083729399
+distEval        INDEL   TP      164730
+distEval        INDEL   FN      2074
+distEval        INDEL   FP      1762
 ```
 where `N+P` gives the total length of the non-overlapping regions in
-`truth-reg.bed`, `TP` is the number of true SNPs (INDELs) within *d*-bp from a
-called SNP (INDEL), `FN` the number of true SNPs (INDELs) *not* within *d*-bp
-from any called SNPs (INDELs) and `FP` the number of called SNPs (INDELs) *not*
-within *d*-bp from any true SNPs (INDELs). Note that the evaluation script
-always breaks MNPs and complex variants into atomic events.
+`N+P.auto.bed.gz`, `TP` is the number of true SNPs (INDELs) within *d*-bp from
+a called variant (including both SNPs and INDELs), `FN` the number of true SNPs
+(INDELs) *not* within *d*-bp from any called variants and `FP` the number of
+called SNPs (INDELs) *not* within *d*-bp from any true variants. Distance-based
+evaluation is robust to the multi-representation of variants.
+
 
 
 [varcmp]: http://bioinformatics.oxfordjournals.org/content/early/2014/07/03/bioinformatics.btu356.abstract
-[vcf]: http://vcftools.sourceforge.net/specs.html
-[ftp]: ftp://hengli-data:lh3data@ftp.broadinstitute.org/hapdip/
 [arxiv]: http://arxiv.org/abs/1404.0929
 [script]: https://github.com/lh3/varcmp/tree/master/scripts
-[dedup]: http://picard.sourceforge.net/command-line-overview.shtml#MarkDuplicates
-[giab]: ftp://ftp-trace.ncbi.nih.gov/giab/ftp/data/NA12878/variant_calls/NIST/
+[hapdip-md]: https://github.com/lh3/hapdip/blob/master/README-hapdip.md
+[fermikit-manu]: https://github.com/lh3/fermikit/tree/master/tex
+[giab218]: http://bit.ly/giab218
+[freebayes]: https://github.com/ekg/freebayes
