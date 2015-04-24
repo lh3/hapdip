@@ -13,6 +13,9 @@ files. In addition, for VCF processing, the script properly breaks MNPs and
 complex events down to atomic SNPs and INDELs. It is aware of the CIGAR INFO
 field produced by [FreeBayes][freebayes].
 
+This script requires the k8 javascript shell to run, which can be found
+[here][k8].
+
 ## Functionalities
 
 ### Filtering single-sample VCF files
@@ -97,3 +100,4 @@ evaluation is robust to the multi-representation of variants.
 [fermikit-manu]: https://github.com/lh3/fermikit/tree/master/tex
 [giab218]: http://bit.ly/giab218
 [freebayes]: https://github.com/ekg/freebayes
+[k8]: https://sourceforge.net/projects/biobin/files/devtools/
