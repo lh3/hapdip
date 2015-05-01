@@ -410,7 +410,7 @@ function b8_parse_vcf1(t) // t = vcf_line.split("\t")
 					x += l;
 				} else if (m4[2] == 'M') x += l, y += l;
 			}
-		} else { // MNP or INDEL from Platypus and others
+		} else { // MNP or INDEL from Platypus and others; FIXME: the following is BUGGY!!! See b8_parse_vcf2() for fix
 			var l = t[3].length < s[i].length? t[3].length : s[i].length;
 			for (var j = 0; j < l; ++j) { // decompose long variants
 				var u = t[3].substr(j, 1), v = s[i].substr(j, 1);
@@ -963,13 +963,18 @@ function b8_parse_vcf2(t) // t = vcf_line.split("\t")
 				} else if (m4[2] == 'M') x += l, y += l;
 			}
 		} else { // MNP or INDEL from Platypus and others
-			var l = t[3].length < s[i].length? t[3].length : s[i].length;
-			for (var j = 0; j < l; ++j) { // decompose long variants
-				var u = t[3].substr(j, 1), v = s[i].substr(j, 1);
-				if (u != v) a.push([pos + j, pos+j+1, 0, u, v, i]);
+			var d = s[i].length - t[3].length, rs, as;
+			if (d > 0) {
+				a.push([pos, pos + 1, d, t[3].charAt(0), s[i].substr(0, d + 1), i]);
+				rs = 1, as = d + 1;
+			} else if (d < 0) {
+				a.push([pos, pos + 1 + (t[3].length + d), d, t[3].substr(0, -d + 1), s[i].charAt(0), i]);
+				rs = -d + 1, as = 1;
+			} else rs = as = 0;
+			for (var j = 0; j < t[3].length - rs; ++j) { // check the rest
+				var u = t[3].substr(rs + j, 1), v = s[i].substr(as + j, 1);
+				if (u != v) a.push([pos + j + rs, pos + j + rs + 1, 0, u, v, i]);
 			}
-			var d = s[i].length - t[3].length;
-			if (d != 0) a.push([pos + l - 1, pos + t[3].length, d, t[3].substr(l-1), s[i].substr(l-1), i]);
 		}
 	}
 	return a; // [start, end, indelLen, ref, alt, i]
@@ -1500,7 +1505,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r28\n");
+		print("Version:  r29\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
