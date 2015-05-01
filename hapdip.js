@@ -1022,13 +1022,13 @@ function b8_vcf2bed(args)
 	file.close();
 }
 
-function b8_unary(args)
+function b8_vcf2ucf(args)
 {
 	var c;
 	while ((c = getopt(args, "")) != null) {
 	}
 	if (args.length == getopt.ind) {
-		print("Usage: k8 hapdip.js unary [options] <in.vcf>");
+		print("Usage: k8 hapdip.js vcf2ucf [options] <in.vcf>");
 		exit(0);
 	}
 
@@ -1508,7 +1508,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r30\n");
+		print("Version:  r31\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
@@ -1519,7 +1519,8 @@ function main(args)
 		print("");
 		print("          qst1     vcf stats stratified by QUAL, one sample only");
 		print("          vcf2bed  convert VCF to unary BED");
-		print("          unary    convert VCF to unary VCF");
+		print("          vcf2ucf  convert VCF to unary VCF");
+		print("          ucf2mat  convert unary VCF to bit matrix");
 		print("          vcfsub   subset, reorder and rename samples in VCF");
 		print("          vcfsum   write total allele/genotype counts and depths in INFO");
 		print("");
@@ -1538,8 +1539,6 @@ function main(args)
 	else if (cmd == 'anno') b8_anno(args);
 	else if (cmd == 'filter') b8_filter(args);
 	else if (cmd == 'qst1') b8_qst1(args);
-	else if (cmd == 'vcf2bed') b8_vcf2bed(args);
-	else if (cmd == 'unary') b8_unary(args);
 	else if (cmd == 'cg2vcf') b8_cg2vcf(args);
 	else if (cmd == 'bedovlp') b8_bedovlp(args);
 	else if (cmd == 'bedcmpm') b8_bedcmpm(args);
@@ -1547,6 +1546,8 @@ function main(args)
 	else if (cmd == 'distEval') b8_distEval(args);
 	else if (cmd == 'vcfsub') b8_vcfsub(args);
 	else if (cmd == 'vcfsum') b8_vcfsum(args);
+	else if (cmd == 'vcf2bed') b8_vcf2bed(args);
+	else if (cmd == 'vcf2ucf') b8_vcf2ucf(args);
 	else warn("Unrecognized command");
 }
 
