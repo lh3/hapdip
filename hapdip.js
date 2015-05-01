@@ -1005,7 +1005,7 @@ function b8_vcf2bed(args)
 		var ACA = b8_get_ACA(t), tot = 0;
 		for (var i = 0; i < ACA.length; ++i) tot += ACA[i];
 		for (var i = 0; i < a.length; ++i) {
-			a[i][5] = ACA[i+1]; a[i][6] = tot;
+			a[i][5] = ACA[a[i][5]+1]; a[i][6] = tot;
 			print(t[0], a[i].join("\t"), t[6]);
 		}
 	}
@@ -1099,7 +1099,7 @@ function b8_unary(args)
 					}
 					t[j+9] = (g[0] < 0? '.' : g[0]) + g[2] + (g[1] < 0? '.' : g[1]);
 				}
-				srt_buf.push(t); if (srt_buf.length > 1) srt_buf.sort(function(a,b) {return a[1]-b[1]});
+				srt_buf.push(t.slice()); if (srt_buf.length > 1) srt_buf.sort(function(a,b) {return a[1]-b[1]});
 			}
 		}
 	}
@@ -1500,7 +1500,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r27\n");
+		print("Version:  r28\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
