@@ -928,8 +928,8 @@ function b8_filter(args)
 function b8_parse_vcf2(t) // t = vcf_line.split("\t")
 {
 	if (t.length < 6) return null;
-	var a = [];
-	t[1] = parseInt(t[1]) - 1; t[3] = t[3].toUpperCase(); t[4] = t[4].toUpperCase();
+	var a = [], pos = parseInt(t[1]) - 1;
+	t[3] = t[3].toUpperCase(); t[4] = t[4].toUpperCase();
 	var s = t[4].split(","); // list of ALT alleles
 	// get CIGAR for freebayes
 	var m3 = /CIGAR=([^;\t]+)/.exec(t[7]);
@@ -938,7 +938,7 @@ function b8_parse_vcf2(t) // t = vcf_line.split("\t")
 	// loop through each ALT allele
 	for (var i = 0; i < s.length; ++i) {
 		if (t[3].length == 1 && s[i].length == 1) { // SNP
-			if (t[3] != s[i]) a.push([t[1], t[1]+1, 0, t[3], s[i], i]);
+			if (t[3] != s[i]) a.push([pos, pos+1, 0, t[3], s[i], i]);
 		} else if (cigar.length) { // MNP or INDEL from freebayes
 			var x = 0, y = 0;
 			var m4, re = /(\d+)([MXID])/g;
@@ -947,18 +947,18 @@ function b8_parse_vcf2(t) // t = vcf_line.split("\t")
 				if (m4[2] == 'X') {
 					for (var j = 0; j < l; ++j) {
 						var u = t[3].substr(x+j, 1), v = s[i].substr(y+j, 1);
-						a.push([t[1] + x, t[1]+x+1, 0, u, v, i]);
+						a.push([pos + x, pos+x+1, 0, u, v, i]);
 					}
 					x += l, y += l;
 				} else if (m4[2] == 'I') {
 					if (x == 0 || y == 0) throw Error("Leading I/D");
 					var u = t[3].substr(x-1, 1), v = s[i].substr(y-1, l+1);
-					a.push([t[1] + x - 1, t[1]+x, l, u, v, i]);
+					a.push([pos + x - 1, pos+x, l, u, v, i]);
 					y += l;
 				} else if (m4[2] == 'D') {
 					if (x == 0 || y == 0) throw Error("Leading I/D");
 					var u = t[3].substr(x-1, l+1), v = s[i].substr(y-1, 1);
-					a.push([t[1] + x - 1, t[1]+x+l, -l, u, v, i]);
+					a.push([pos + x - 1, pos+x+l, -l, u, v, i]);
 					x += l;
 				} else if (m4[2] == 'M') x += l, y += l;
 			}
@@ -966,10 +966,10 @@ function b8_parse_vcf2(t) // t = vcf_line.split("\t")
 			var l = t[3].length < s[i].length? t[3].length : s[i].length;
 			for (var j = 0; j < l; ++j) { // decompose long variants
 				var u = t[3].substr(j, 1), v = s[i].substr(j, 1);
-				if (u != v) a.push([t[1] + j, t[1]+j+1, 0, u, v, i]);
+				if (u != v) a.push([pos + j, pos+j+1, 0, u, v, i]);
 			}
 			var d = s[i].length - t[3].length;
-			if (d != 0) a.push([t[1] + l - 1, t[1] + t[3].length, d, t[3].substr(l-1), s[i].substr(l-1), i]);
+			if (d != 0) a.push([pos + l - 1, pos + t[3].length, d, t[3].substr(l-1), s[i].substr(l-1), i]);
 		}
 	}
 	return a; // [start, end, indelLen, ref, alt, i]
@@ -1404,7 +1404,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r24\n");
+		print("Version:  r25\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
