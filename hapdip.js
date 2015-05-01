@@ -1026,16 +1026,24 @@ function b8_unary(args)
 
 	var file = args[getopt.ind] == '-'? new File() : new File(args[getopt.ind]);
 	var buf = new Bytes();
+	var srt_buf = [];
 
 	while (file.readline(buf) >= 0) {
 		if (buf.length == 0) continue; // skip empty lines
 		var line = buf.toString();
 		if (line.charAt(0) == '#') { // VCF header
+			if (line.length > 1 && line.charAt(1) != '#')
+				print('##ALT=<ID=M,Description="miscellaneous allele">');
+			print(line);
 		} else {
 			var t = line.split("\t");
+			t[1] = parseInt(t[1]);
+			// print srt_buf
+			while (srt_buf.length && (srt_buf[0][0] != t[0] || srt_buf[0][1] <= t[1]))
+				print(srt_buf.shift().join("\t"));
 			// check if multi-allelic; if not, skip the rest of part
 			if (t[4].indexOf(',') < 0) {
-				print(line);
+				srt_buf.push(t); if (srt_buf.length > 1) srt_buf.sort(function(a,b) {return a[1]-b[1]});
 				continue;
 			}
 			// parse VCF line
@@ -1091,10 +1099,11 @@ function b8_unary(args)
 					}
 					t[j+9] = (g[0] < 0? '.' : g[0]) + g[2] + (g[1] < 0? '.' : g[1]);
 				}
-				print(t.join("\t"));
+				srt_buf.push(t); if (srt_buf.length > 1) srt_buf.sort(function(a,b) {return a[1]-b[1]});
 			}
 		}
 	}
+	while (srt_buf.length) print(srt_buf.shift().join("\t"));
 
 	buf.destroy();
 	file.close();
@@ -1491,7 +1500,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r26\n");
+		print("Version:  r27\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
@@ -1502,7 +1511,7 @@ function main(args)
 		print("");
 		print("          qst1     vcf stats stratified by QUAL, one sample only");
 		print("          vcf2bed  convert VCF to unary BED");
-		print("          unary    convert to unary VCF");
+		print("          unary    convert VCF to unary VCF");
 		print("          vcfsub   subset, reorder and rename samples in VCF");
 		print("          vcfsum   write total allele/genotype counts and depths in INFO");
 		print("");
