@@ -403,25 +403,28 @@ function b8_parse_vcf1(t) // t = vcf_line.split("\t")
 					}
 					x += l, y += l;
 				} else if (m4[2] == 'I') {
-					a.push([t[5], 3, gt, t[1] + x, l]);
+					a.push([t[5], 3, gt, t[1] + x - 1, l]);
 					y += l;
 				} else if (m4[2] == 'D') {
-					a.push([t[5], 4, gt, t[1] + x, -l]);
+					a.push([t[5], 4, gt, t[1] + x - 1, -l]);
 					x += l;
 				} else if (m4[2] == 'M') x += l, y += l;
 			}
-		} else { // MNP or INDEL from Platypus and others; FIXME: the following is BUGGY!!! See b8_parse_vcf2() for fix
-			var l = t[3].length < s[i].length? t[3].length : s[i].length;
-			for (var j = 0; j < l; ++j) { // decompose long variants
-				var u = t[3].substr(j, 1), v = s[i].substr(j, 1);
+		} else { // MNP or INDEL from Platypus and others
+			var d = s[i].length - t[3].length, rs, as;
+			if (d > 0) {
+				a.push([t[5], 3, gt, t[1], d]);
+				rs = 1, as = d + 1;
+			} else if (d < 0) {
+				a.push([t[5], 4, gt, t[1], d]);
+				rs = -d + 1, as = 1;
+			} else rs = as = 0;
+			for (var j = 0; j < t[3].length - rs; ++j) { // check the rest
+				var u = t[3].substr(rs + j, 1), v = s[i].substr(as + j, 1);
 				if (u != v) {
 					type = ((u == 'A' && v == 'G') || (u == 'G' && v == 'A') || (u == 'C' && v == 'T') || (u == 'T' && v == 'C'))? 0 : 1;
-					a.push([t[5], type, gt, t[1] + j, 0]);
+					a.push([t[5], type, gt, t[1] + j + rs, 0]);
 				}
-			}
-			if (t[3].length != s[i].length) { // INDEL
-				type = t[3].length < s[i].length? 3 : 4;
-				a.push([t[5], type, gt, t[1], s[i].length - t[3].length]);
 			}
 		}
 	}
@@ -1505,7 +1508,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r29\n");
+		print("Version:  r30\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
