@@ -734,7 +734,7 @@ function b8_anno(args)
 				var s = t[9].split(":");
 				var cf = s[ADF].split(",");
 				var cr = s[ADR].split(",");
-				dp4 = [parseInt(cf[0]),parseInt(rf[0]),0,0];
+				dp4 = [parseInt(cf[0]),parseInt(cr[0]),0,0];
 				for (var i = 1; i < cf.length; ++i)
 					dp4[2] += parseInt(cf[i]), dp4[3] += parseInt(cr[i]);
 			} else if (AD != null) {
