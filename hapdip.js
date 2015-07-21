@@ -1022,101 +1022,6 @@ function b8_vcf2bed(args)
 	file.close();
 }
 
-function b8_vcf2ucf(args)
-{
-	var c;
-	while ((c = getopt(args, "")) != null) {
-	}
-	if (args.length == getopt.ind) {
-		print("Usage: k8 hapdip.js vcf2ucf [options] <in.vcf>");
-		exit(0);
-	}
-
-	var file = args[getopt.ind] == '-'? new File() : new File(args[getopt.ind]);
-	var buf = new Bytes();
-	var srt_buf = [];
-
-	while (file.readline(buf) >= 0) {
-		if (buf.length == 0) continue; // skip empty lines
-		var line = buf.toString();
-		if (line.charAt(0) == '#') { // VCF header
-			if (line.length > 1 && line.charAt(1) != '#')
-				print('##ALT=<ID=M,Description="miscellaneous allele">');
-			print(line);
-		} else {
-			var t = line.split("\t");
-			t[1] = parseInt(t[1]);
-			// print srt_buf
-			while (srt_buf.length && (srt_buf[0][0] != t[0] || srt_buf[0][1] <= t[1]))
-				print(srt_buf.shift().join("\t"));
-			// check if multi-allelic; if not, skip the rest of part
-			if (t[4].indexOf(',') < 0) {
-				srt_buf.push(t); if (srt_buf.length > 1) srt_buf.sort(function(a,b) {return a[1]-b[1]});
-				continue;
-			}
-			// parse VCF line
-			var a = b8_parse_vcf2(t);
-			a.sort(function(x,y){return x[0]-y[0]}); // sort by start position
-			// initialize overlapping square matrix
-			var co = [];
-			var n_alt = t[4].split(",").length;
-			for (var i = 0; i < n_alt; ++i) {
-				co[i] = [];
-				for (var j = 0; j < n_alt; ++j)
-					co[i][j] = i == j? true : false;
-			}
-			// parse genotypes
-			var gt = [], cnt_a = [];
-			for (var i = 0; i < n_alt; ++i) cnt_a[i] = 0;
-			for (var i = 9; i < t.length; ++i) {
-				var m;
-				if ((m = /^(\d+|\.)([\|\/])(\d+|\.)/.exec(t[i])) != null) {
-					var h1 = m[1] == "."? -1 : parseInt(m[1]);
-					var h2 = m[3] == "."? -1 : parseInt(m[3]);
-					gt.push([h1, h2, m[2]]);
-					if (h1 > 0) ++cnt_a[h1-1];
-					if (h2 > 0) ++cnt_a[h2-1];
-					if (h1 > 0 && h2 > 0 && h1 != h2)
-						co[h1-1][h2-1] = co[h2-1][h1-1] = true;
-				} else gt.push(-1, -1, '/');
-			}
-			for (var i = 0; i < a.length; ++i) {
-				if (cnt_a[i] == 0) continue;
-				// identify overlapping alleles
-				var ovlp = [];
-				for (var j = 0; j < a.length; ++j)
-					if (i != j && cnt_a[j] > 0 && a[i][0] < a[j][1] && a[j][0] < a[i][1] && co[a[i][5]][a[j][5]])
-						ovlp.push(j);
-				// flag overlapping alleles
-				var ovlp_flag = [];
-				for (var j = 0; j < n_alt; ++j) ovlp_flag[j] = false;
-				for (var j = 0; j < ovlp.length; ++j) ovlp_flag[ovlp[j]] = true;
-				// update fixed fields
-				t[1] = a[i][0] + 1; t[3] = a[i][3]; t[4] = a[i][4];
-				if (ovlp.length > 0) t[4] += ",<M>";
-				t[8] = 'GT';
-				// update genotypes
-				var an = a[i][5] + 1;
-				for (var j = 0; j < gt.length; ++j) {
-					var g = [gt[j][0], gt[j][1], gt[j][2]];
-					for (var k = 0; k < 2; ++k) {
-						if (gt[j][k] <= 0) continue;
-						if (gt[j][k] == an) g[k] = 1;
-						else if (ovlp_flag[gt[j][k] - 1]) g[k] = 2;
-						else g[k] = 0;
-					}
-					t[j+9] = (g[0] < 0? '.' : g[0]) + g[2] + (g[1] < 0? '.' : g[1]);
-				}
-				srt_buf.push(t.slice()); if (srt_buf.length > 1) srt_buf.sort(function(a,b) {return a[1]-b[1]});
-			}
-		}
-	}
-	while (srt_buf.length) print(srt_buf.shift().join("\t"));
-
-	buf.destroy();
-	file.close();
-}
-
 /*******************************************
  *** subset, replace and reorder samples ***
  *******************************************/
@@ -1508,7 +1413,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r31\n");
+		print("Version:  r32\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
@@ -1519,7 +1424,6 @@ function main(args)
 		print("");
 		print("          qst1     vcf stats stratified by QUAL, one sample only");
 		print("          vcf2bed  convert VCF to unary BED");
-		print("          vcf2ucf  convert VCF to unary VCF");
 		print("          ucf2mat  convert unary VCF to bit matrix");
 		print("          vcfsub   subset, reorder and rename samples in VCF");
 		print("          vcfsum   write total allele/genotype counts and depths in INFO");
@@ -1547,7 +1451,6 @@ function main(args)
 	else if (cmd == 'vcfsub') b8_vcfsub(args);
 	else if (cmd == 'vcfsum') b8_vcfsum(args);
 	else if (cmd == 'vcf2bed') b8_vcf2bed(args);
-	else if (cmd == 'vcf2ucf') b8_vcf2ucf(args);
 	else warn("Unrecognized command");
 }
 
