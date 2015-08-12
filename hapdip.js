@@ -1077,11 +1077,12 @@ function b8_vcfsub(args)
 
 function b8_vcfsum(args)
 {
-	var c, beds = [], min_top_sr = 10, no_filter = true, no_gt = false;
-	while ((c = getopt(args, "Gfb:n:")) != null) {
+	var c, beds = [], min_top_sr = 10, no_filter = true, no_gt = false, max_no_call = 0.5;
+	while ((c = getopt(args, "Gfb:n:c:")) != null) {
 		if (c == 'n') min_top_sr = parseInt(getopt.arg);
 		else if (c == 'f') no_filter = false;
 		else if (c == 'G') no_gt = true;
+		else if (c == 'c') max_no_call = parseFloat(getopt.arg);
 		else if (c == 'b') {
 			var m, label = null, fn = null;
 			if ((m = /([^\s=]+)=(\S+)/.exec(getopt.arg)) != null) {
@@ -1097,9 +1098,10 @@ function b8_vcfsum(args)
 		print("Usage: k8 hapdip.js vcfsum [options] <htsbox-pileup.vcf>");
 		print("Options:");
 		print("  -b STR=FILE   flag STR in INFO if overlapping regions in BED FILE [null]");
-		print("  -n INT        threshold on the SR filter (effective with -f) [10]");
+		print("  -n INT        threshold on the SR filter (effective with -f) ["+min_top_sr+"]");
+		print("  -c FLOAT      threshold on the no-call rate ["+max_no_call+"]");
 		print("  -G            discard genotype fields");
-		print("  -f            add LOWAD and NONVAR to FILTER");
+		print("  -f            add HIGHNC, LOWAD and NONVAR to FILTER");
 		exit(1);
 	}
 
@@ -1107,6 +1109,7 @@ function b8_vcfsum(args)
 
 	var new_lines = "";
 	new_lines += '##FILTER=<ID=LOWAD,Description="TOPAD < ' + min_top_sr + '">\n';
+	new_lines += '##FILTER=<ID=HIGHNC,Description="no-call rate > ' + max_no_call +'">\n';
 	new_lines += '##FILTER=<ID=NONVAR,Description="not a variant site">\n';
 	for (var i = 0; i < beds.length; ++i)
 		new_lines += '##INFO=<ID=' + beds[i][0] + ',Number=0,Type=Flag>\n';
@@ -1184,6 +1187,8 @@ function b8_vcfsum(args)
 			if (alt_cnt == 0) flt = 'NONVAR';
 			if (sr != null && max_topSR < min_top_sr)
 				flt = flt == ''? 'LOWAD' : flt + ';LOWAD';
+			if (ACA[0] + alt_cnt < 2 * (t.length - 9) * max_no_call)
+				flt = flt == ''? 'HIGHNC' : flt + ';HIGHNC';
 			if (t[6] == '.' || t[6] == 'PASS') t[6] = flt == ''? 'PASS' : flt;
 			else if (flt != '') t[6] += ';' + flt;
 		}
@@ -1413,7 +1418,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r36\n");
+		print("Version:  r37\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
