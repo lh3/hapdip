@@ -1201,6 +1201,34 @@ function b8_vcfsum(args)
 	file.close();
 }
 
+function b8_vcfswap(args)
+{
+	var file = args.length == 0? new File() : new File(args[0]);
+	var buf = new Bytes();
+
+	while (file.readline(buf) >= 0) {
+		var line = buf.toString();
+		if (line.charAt(0) == '#') {
+			print(line);
+			continue;
+		}
+		var m, t = line.split("\t");
+		for (var i = 9; i < t.length; ++i) {
+			if ((m = /^(\d+)([\|\/])(\d+)(.*)/.exec(t[i])) != null) {
+				if (m[2] == '|') continue;
+				var a = parseInt(m[1]), b = parseInt(m[3]);
+				if (a <= b) continue;
+				if (m[4]) t[i] = b + "/" + a + m[4];
+				else t[i] = b + "/" + a;
+			}
+		}
+		print(t.join("\t"));
+	}
+
+	buf.destroy();
+	file.close();
+}
+
 /**********************************
  *** Evaluate CHM1-NA12878 VCFs ***
  **********************************/
@@ -1432,6 +1460,7 @@ function main(args)
 		print("          ucf2mat  convert unary VCF to bit matrix");
 		print("          vcfsub   subset, reorder and rename samples in VCF");
 		print("          vcfsum   write total allele/genotype counts and depths in INFO");
+		print("          vcfswap  swap the two alleles in an unphased genotype");
 		print("");
 		print("          cg2vcf   convert CG's masterVarBeta to VCF");
 		print("          bedovlp  count lines overlapping in a second bed");
@@ -1456,6 +1485,7 @@ function main(args)
 	else if (cmd == 'vcfsub') b8_vcfsub(args);
 	else if (cmd == 'vcfsum') b8_vcfsum(args);
 	else if (cmd == 'vcf2bed') b8_vcf2bed(args);
+	else if (cmd == 'vcfswap') b8_vcfswap(args);
 	else warn("Unrecognized command");
 }
 
