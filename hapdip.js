@@ -403,16 +403,19 @@ function b8_parse_vcf1(t) // t = vcf_line.split("\t")
 					}
 					x += l, y += l;
 				} else if (m4[2] == 'I') {
-					a.push([t[5], 3, gt, t[1] + x - 1,  l, s[i].substr(y, l)]);
+					a.push([t[5], 3, gt, t[1] + x,  l, s[i].substr(y, l)]);
 					y += l;
 				} else if (m4[2] == 'D') {
-					a.push([t[5], 4, gt, t[1] + x - 1, -l, t[3].substr(x, l)]);
+					a.push([t[5], 4, gt, t[1] + x, -l, t[3].substr(x, l)]);
 					x += l;
 				} else if (m4[2] == 'M') x += l, y += l;
 			}
 		} else { // MNP or INDEL from Platypus and others
-			var st;
-			for (st = 0; st < s[i].length && st < t[3].length; ++st) // skip matching bases at the left hand
+			var en_l, st;
+			for (en_l = 0; en_l < s[i].length && en_l < t[3].length; ++en_l)
+				if (s[i].charAt(s[i].length - 1 - en_l) != t[3].charAt(t[3].length - 1 - en_l))
+					break;
+			for (st = 0; st < s[i].length - en_l && st < t[3].length - en_l; ++st) // skip matching bases at the left hand
 				if (s[i].charAt(st) != t[3].charAt(st))
 					break;
 			var d = s[i].length - t[3].length, rs, as;
@@ -1476,7 +1479,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r39\n");
+		print("Version:  r40\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
