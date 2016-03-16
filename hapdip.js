@@ -404,7 +404,7 @@ function b8_parse_vcf1(t) // t = vcf_line.split("\t")
 			a.push([t[5], type, gt, t[1], 0]);
 		} else if (cigar.length) { // MNP or INDEL from freebayes
 			var x = 0, y = 0;
-			var m4, re = /(\d+)([MXID])/g;
+			var m4, re = /(\d+)([MXID=])/g;
 			while ((m4 = re.exec(cigar[i])) != null) {
 				var l = parseInt(m4[1]);
 				if (m4[2] == 'X') {
@@ -420,7 +420,7 @@ function b8_parse_vcf1(t) // t = vcf_line.split("\t")
 				} else if (m4[2] == 'D') {
 					a.push([t[5], 4, gt, t[1] + x, -l, t[3].substr(x, l)]);
 					x += l;
-				} else if (m4[2] == 'M') x += l, y += l;
+				} else if (m4[2] == 'M' || m4[2] == '=') x += l, y += l;
 			}
 		} else { // MNP or INDEL from Platypus and others
 			var st = b8_allele_start(t[3], s[i]);
@@ -1495,7 +1495,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r42\n");
+		print("Version:  r43\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
