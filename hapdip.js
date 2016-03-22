@@ -40,18 +40,20 @@ var getopt = function(args, ostr) {
 	return optopt;
 }
 
-function intv_ovlp2(intv, bits)
+function intv_ovlp3(intv, bits, to_merge)
 {
 	if (typeof bits == "undefined") bits = 13;
+	if (typeof to_merge == "undefined") to_merge = true;
 	intv.sort(function(a,b) {return a[0]-b[0];});
-	// merge overlapping regions
-	var j = 0;
-	for (var i = 1; i < intv.length; ++i) {
-		if (intv[j][1] > intv[i][0])
-			intv[j][1] = intv[j][1] > intv[i][1]? intv[j][1] : intv[i][1];
-		else intv[++j] = intv[i].slice(0);
+	if (to_merge) { // merge overlapping regions
+		var j = 0;
+		for (var i = 1; i < intv.length; ++i) {
+			if (intv[j][1] > intv[i][0])
+				intv[j][1] = intv[j][1] > intv[i][1]? intv[j][1] : intv[i][1];
+			else intv[++j] = intv[i].slice(0);
+		}
+		intv.length = j + 1;
 	}
-	intv.length = j + 1;
 	//
 	var sum = 0;
 	for (var i = 0; i < intv.length; ++i)
@@ -81,6 +83,11 @@ function intv_ovlp2(intv, bits)
 			if (intv[i][1] > _b) return intv[i];
 		return null;
 	}, sum]
+}
+
+function intv_ovlp2(intv, bits)
+{
+	return intv_ovlp3(intv, bits, true);
 }
 
 function intv_ovlp(intv, bits)
@@ -1492,7 +1499,7 @@ function b8_distEval(args)
 		file.close();
 		for (var chr in reg)
 			if (reg[chr].length > 0)
-				idx[chr] = intv_ovlp(reg[chr]);
+				idx[chr] = intv_ovlp3(reg[chr], 13, false)[0];
 		return [reg, idx];
 	}
 
@@ -1560,7 +1567,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r46\n");
+		print("Version:  r47\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
