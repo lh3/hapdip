@@ -393,8 +393,11 @@ function b8_parse_vcf1(t) // t = vcf_line.split("\t")
 	var gt, match = /^(\d+)(\/|\|)(\d+)/.exec(t[9]);
 	if (match == null) { // special-casing samtools, as for single-sample, it effectively gives the genotype at FQ
 		var m2 = /FQ=([^;\t]+)/.exec(t[7]);
-		if (m2 == null) gt = /^\.\/\./.test(t[7])? 0 : -1; // special casing CG VCF
-		else gt = parseFloat(m2[1]) > 0? 1 : 0;
+		if (m2 == null) {
+			m2 = /^(\.|\d+)(\/|\|)(\.|\d+)/.exec(t[9]);
+			if (m2 != null) gt = m2[1] == m2[3]? 1 : 0; // NOTE: ./. is treated as a hom
+			else gt = -1;
+		} else gt = parseFloat(m2[1]) > 0? 1 : 0;
 	} else {
 		gt = parseInt(match[1]) != parseInt(match[3])? 1 : 0;
 		if (match[1] == 0 && match[2] == 0) return [];
@@ -1568,7 +1571,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r48\n");
+		print("Version:  r49\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
