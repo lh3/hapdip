@@ -1452,9 +1452,6 @@ function b8_distEval(args)
 		warn("Reading N+P regions...");
 		var a = read_bed(fn_bed);
 		sum_NP = a[2], bed_NP = a[0];
-	} else {
-		warn("ERROR: gVCF support is not implemented yet. Option -b is required for now.");
-		exit(1);
 	}
 	var hp = fn_hp != null? b8_read_hrun(fn_hp) : null;
 
@@ -1512,11 +1509,12 @@ function b8_distEval(args)
 	warn("Counting TP and FN...");
 	var cc = [0, 0, 0, 0, 0];
 	for (var chr in truth[0]) {
-		var chr_NP = bed_NP[chr], chr_call = call[1][chr];
-		if (chr_NP == null) continue; // not in N+P
+		var chr_NP = bed_NP != null? bed_NP[chr] : null;
+		var chr_call = call[1][chr];
+		if (bed_NP != null && chr_NP == null) continue; // not in N+P
 		var x = truth[0][chr];
 		for (var i = 0; i < x.length; ++i) {
-			if (chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
+			if (bed_NP != null && chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
 			var start = x[i][0] - max_d, end = x[i][1] + max_d, type = x[i][2] == 0? 0 : 1;
 			if (start < 0) start = 0;
 			if (chr_call == null || chr_call(start, end) == null) {
@@ -1528,11 +1526,12 @@ function b8_distEval(args)
 
 	warn("Counting FP...");
 	for (var chr in call[0]) {
-		var chr_NP = bed_NP[chr], chr_truth = truth[1][chr];
-		if (chr_NP == null) continue; // not in N+P
+		var chr_NP = bed_NP != null? bed_NP[chr] : null;
+		var chr_truth = truth[1][chr];
+		if (bed_NP != null && chr_NP == null) continue; // not in N+P
 		var x = call[0][chr];
 		for (var i = 0; i < x.length; ++i) {
-			if (chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
+			if (bed_NP != null && chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
 			var start = x[i][0] - max_d, end = x[i][1] + max_d, type = x[i][2] == 0? 0 : 1;
 			if (start < 0) start = 0;
 			if (chr_truth == null || chr_truth(start, end) == null) {
@@ -1544,13 +1543,15 @@ function b8_distEval(args)
 
 	if (!show_err) {
 		if (eval_snp) {
-			print("distEval", 'SNP', "N+P",sum_NP);
+			if (bed_NP != null)
+				print("distEval", 'SNP', "N+P", sum_NP);
 			print("distEval", 'SNP', "TP", TP[0]);
 			print("distEval", 'SNP', "FN", FN[0]);
 			print("distEval", 'SNP', "FP", FP[0]);
 		}
 		if (eval_indel) {
-			print("distEval", 'INDEL', "N+P",sum_NP);
+			if (bed_NP != null)
+				print("distEval", 'INDEL', "N+P", sum_NP);
 			print("distEval", 'INDEL', "TP", TP[1]);
 			print("distEval", 'INDEL', "FN", FN[1]);
 			print("distEval", 'INDEL', "FP", FP[1]);
@@ -1567,7 +1568,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r47\n");
+		print("Version:  r48\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
