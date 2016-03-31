@@ -1396,9 +1396,15 @@ function b8_rtgprep(args)
 	warn("Processing VCF...");
 	var file = new File(args[getopt.ind]);
 	var last_mt = null;
+	var ctg_dict = {};
 	while (file.readline(buf) >= 0) {
-		var l = buf.toString();
+		var m, l = buf.toString();
 		if (l.charAt(0) == '#') {
+			if ((m = /^##contig.*ID=([^,\s]+)/.exec(l)) != null) {
+				if (ctg_dict[m[1]] != null) // skip duplicated contig name
+					continue;
+				ctg_dict[m[1]] = 1;
+			}
 			print(l);
 		} else {
 			var t = l.split("\t");
@@ -1602,7 +1608,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r50\n");
+		print("Version:  r51\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("          rtgprep  prepare 'bgt atomize' VCF for 'rtg vcfeval'");
