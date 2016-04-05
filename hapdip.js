@@ -541,17 +541,22 @@ function b8_upd1gt(args)
 
 	var file = args.length > getopt.ind? new File(args[getopt.ind]) : new File();
 	var buf = new Bytes();
-	var c1 = '#'.charCodeAt(0);
 	var re = /^(\d+)(\/|\|)(\d+)/;
 	var lineno = 0;
+	var have_GQ = false;
 
 	while (file.readline(buf) >= 0) {
 		++lineno;
-		if (buf[0] == c1) {
-			print(buf);
+		var line = buf.toString();
+		if (line.charAt(0) == '#') {
+			if (/^##FORMAT=<ID=GQ/.test(line))
+				have_GQ = true;
+			if (line.charAt(1) != '#' && !have_GQ)
+				print('##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">');
+			print(line);
 			continue;
 		}
-		var t = buf.toString().split("\t");
+		var t = line.split("\t");
 		var s1 = t[8].split(":");
 		var s2 = t[9].split(":");
 		var i;
@@ -1608,7 +1613,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r51\n");
+		print("Version:  r52\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("          rtgprep  prepare 'bgt atomize' VCF for 'rtg vcfeval'");
