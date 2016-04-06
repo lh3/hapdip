@@ -1569,12 +1569,12 @@ function b8_distEval(args)
 			var a = b8_parse_vcf1(t);
 			if (reg[t[0]] == null) reg[t[0]] = [];
 			for (var i = 0; i < a.length; ++i) {
-				var x = a[i], end;
+				var x = a[i], end, flt = false;
 				if (!eval_indel && x[4] != 0) continue;
 				if (!eval_snp   && x[4] == 0) continue;
 				if (x[4] != 0) {
-					if (x[4] < min_l && x[4] > -min_l) continue;
-					if (x[4] > max_l || x[4] < -max_l) continue;
+					if (x[4] < min_l && x[4] > -min_l) flt = true;
+					if (x[4] > max_l || x[4] < -max_l) flt = true;
 				}
 				if (hp != null && x[4] != 0) { // test if we are at a homopolymer INDEL
 					var j, seq = x[5];
@@ -1583,12 +1583,12 @@ function b8_distEval(args)
 							break;
 					if (j == seq.length) {
 						var key = t[0] + ':' + x[3] + seq.charAt(0);
-						if (hp.get(key) != null) continue; // skip if it is a homopolymer INDEL
+						if (hp.get(key) != null) flt = true;
 					}
 				}
-				if (x[4] > 0) reg[t[0]].push([x[3] - 1, x[3] + 1, x[4]]);
-				else if (x[4] == 0) reg[t[0]].push([x[3], x[3] + 1, x[4]]);
-				else reg[t[0]].push([x[3], x[3] - x[4], x[4]]);
+				if (x[4] > 0) reg[t[0]].push([x[3] - 1, x[3] + 1, x[4], flt]);
+				else if (x[4] == 0) reg[t[0]].push([x[3], x[3] + 1, x[4], flt]);
+				else reg[t[0]].push([x[3], x[3] - x[4], x[4], flt]);
 			}
 		}
 
@@ -1615,6 +1615,7 @@ function b8_distEval(args)
 		var x = truth[0][chr];
 		for (var i = 0; i < x.length; ++i) {
 			if (bed_NP != null && chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
+			if (x[i][3]) continue; // filtered
 			var start = x[i][0] - max_d, end = x[i][1] + max_d, type = x[i][2] == 0? 0 : 1;
 			if (start < 0) start = 0;
 			if (chr_call == null || chr_call(start, end) == null) {
@@ -1632,6 +1633,7 @@ function b8_distEval(args)
 		var x = call[0][chr];
 		for (var i = 0; i < x.length; ++i) {
 			if (bed_NP != null && chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
+			if (x[i][3]) continue; // filtered
 			var start = x[i][0] - max_d, end = x[i][1] + max_d, type = x[i][2] == 0? 0 : 1;
 			if (start < 0) start = 0;
 			if (chr_truth == null || chr_truth(start, end) == null) {
@@ -1668,7 +1670,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r53\n");
+		print("Version:  r54\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
