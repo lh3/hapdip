@@ -854,7 +854,7 @@ function b8_anno(args)
 
 function b8_filter(args)
 {
-	var c, AB = 30, LC = 0, DP_coef = 4, DS = 1, FS = 20, min_q = 30, min_dp = 3, no_header = false, drop_flt = false, auto_only = false, meanDP = -1;
+	var c, AB = 30, LC = 0, DP_coef = 4, DS = 1, FS = 30, min_q = 30, min_dp = 3, no_header = false, drop_flt = false, auto_only = false, meanDP = -1;
 	while ((c = getopt(args, "Aa:q:f:HDd:c:s:F:")) != null) {
 		if (c == 'a') AB = parseInt(getopt.arg);
 		else if (c == 'q') min_q = parseFloat(getopt.arg);
@@ -1358,7 +1358,7 @@ function b8_read_hrun(fn_hp)
 	while (file.readline(buf) >= 0) {
 		var t = buf.toString().split("\t");
 		if (t.length < 4) continue;
-		hp.put(t[0] + ':' + t[1] + t[3].toUpperCase());
+		hp.put(t[0] + ':' + t[1] + t[3].toUpperCase(), t[2] - t[1]);
 	}
 	buf.destroy();
 	file.close();
@@ -1371,36 +1371,34 @@ function b8_merge_print_mt(s, t)
 		var x;
 		x = s, s = t, t = x;
 	}
-	var l = t[1] - s[1], r = l + t[3].length - s[3].length;
+	var m, l = t[1] - s[1], r = l + t[3].length - s[3].length;
 	var left = s[3].substr(0, l);
 	var right = t[3].substr(t[3].length - r);
 	var ref = s[3] + right;
 	var alt = s[4] + right + "," + left + t[4];
 	s[3] = ref, s[4] = alt, s[9] = "1/2";
+	var hpl_s = (m = /HPL=(\d+)/.exec(s[7])) != null? m[1] : '.';
+	var hpl_t = (m = /HPL=(\d+)/.exec(t[7])) != null? m[1] : '.';
+	if (hpl_s != '.' || hpl_t != '.')
+		s[7] = "HPL=" + hpl_s + "," + hpl_t;
 	print(s.join("\t"));
 }
 
-function b8_rtgprep(args)
+function b8_postatom(args)
 {
-	var min_l = 0, max_l = 1<<30, fn_hp = null, fn_bed = null, bed = null;
-	while ((c = getopt(args, "l:L:p:b:")) != null) {
-		if (c == 'l') min_l = parseInt(getopt.arg);
-		else if (c == 'L') max_l = parseInt(getopt.arg);
-		else if (c == 'p') fn_hp = getopt.arg;
-		else if (c == 'b') fn_bed = getopt.arg;
-	}
+	var fn_hp = null;
+	while ((c = getopt(args, "p:")) != null)
+		if (c == 'p') fn_hp = getopt.arg;
 	if (getopt.ind + 1 > args.length) {
-		print("Usage: bgt atomize -S <in.vcf> | k8 hapdip.js rtgprep [-l minL] [-L maxL] [-p hrun] [-b bed] /dev/stdin");
+		print("Usage: bgt atomize -S <in.vcf> | k8 hapdip.js postatom [-p hrun] /dev/stdin");
 		exit(1);
 	}
 
 	var hp = fn_hp != null? b8_read_hrun(fn_hp) : null;
-	if (fn_bed) warn("Reading BED...");
-	var bed = fn_bed != null? read_bed(fn_bed)[0] : null;
 	var buf = new Bytes();
 	warn("Processing VCF...");
 	var file = new File(args[getopt.ind]);
-	var last_mt = null;
+	var last_mt = null, last_hrun = 0;
 	var ctg_dict = {};
 	while (file.readline(buf) >= 0) {
 		var m, l = buf.toString();
@@ -1410,6 +1408,8 @@ function b8_rtgprep(args)
 					continue;
 				ctg_dict[m[1]] = 1;
 			}
+			if (hp != null && l.charAt(1) != '#')
+				print('##INFO=<ID=HPL,Number=A,Type=Integer,Description="Homopolymer run length, if available">');
 			print(l);
 		} else {
 			var t = l.split("\t");
@@ -1417,19 +1417,7 @@ function b8_rtgprep(args)
 			var pos = t[1] - 1;
 			var is_mt = (/^\.(\/|\|)1/.test(t[9]) || /^1(\/|\|)\./.test(t[9]));
 			var gap = t[4].length - t[3].length;
-			if (gap != 0) {
-				if (gap < min_l && gap > -min_l) continue;
-				if (gap > max_l || gap < -max_l) continue;
-			}
-			var start, end;
-			if (gap == 0) start = pos, end = start + 1;
-			else if (gap > 0) start = pos, end = start + 2;
-			else start = pos + 1, end = start + t[3].length - 1;
-			if (bed != null) {
-				if (bed[t[0]] == null) continue;
-				if (bed[t[0]](start, end) == null)
-					continue;
-			}
+			var hrun = 0;
 			if (hp != null && gap != 0) { // test if we are at a homopolymer INDEL
 				var j, seq = gap > 0? t[4].substr(1) : t[3].substr(1);
 				for (j = 1; j < seq.length; ++j) // test if ins/del bases are all the same
@@ -1437,9 +1425,12 @@ function b8_rtgprep(args)
 						break;
 				if (j == seq.length) {
 					var key = t[0] + ':' + (pos+1) + seq.charAt(0);
-					if (hp.get(key) != null) continue; // skip if it is a homopolymer INDEL
+					var val = hp.get(key);
+					if (val != null) // a homopolymer indel
+						hrun = parseInt(val);
 				}
 			}
+			if (hp != null && hrun > 0) t[7] = "HPL=" + hrun;
 			if (last_mt != null) {
 				if (!is_mt || (t[0] == last_mt[0] && pos >= last_mt[1]-1 + last_mt[3].length)) {
 					print(last_mt.join("\t"));
@@ -1451,6 +1442,7 @@ function b8_rtgprep(args)
 				}
 			}
 			if (is_mt) last_mt = t.slice(0);
+			else if (hrun > 0) print(t.join("\t"));
 			else print(l);
 		}
 	}
@@ -1458,6 +1450,69 @@ function b8_rtgprep(args)
 	file.close();
 	buf.destroy();
 	if (hp != null) hp.destroy();
+}
+
+function b8_atomcnt(args)
+{
+	var c, min_l = 0, max_l = 1<<30, max_hpl = 1<<30, fn_bed = null, bed = null, to_print = false;
+	while ((c = getopt(args, "b:l:L:p:P")) != null) {
+		if (c == 'b') fn_bed = getopt.arg;
+		else if (c == 'l') min_l = parseInt(getopt.arg);
+		else if (c == 'L') max_l = parseInt(getopt.arg);
+		else if (c == 'p') max_hpl = parseInt(getopt.arg);
+		else if (c == 'P') to_print = true;
+	}
+	if (getopt.ind + 1 > args.length) {
+		print("Usage: k8 atomcnt [options] <in.vcf>");
+		print("Options:");
+		print("  -b FILE     ignore variants not overlapping BED FILE [null]");
+		print("  -l INT      ignore INDELs shorter than INT [0]");
+		print("  -L INT      ignore INDELs longer than INT [inf]");
+		print("  -p INT      ignore HPL longer than INT [inf]");
+		print("  -P          print counted VCF (don't print counts)");
+		exit(1);
+	}
+	if (fn_bed != null) bed = read_bed(fn_bed)[0];
+
+	var file = new File(args[getopt.ind]);
+	var buf = new Bytes();
+	var n_sub = 0, n_gap = 0;
+	while (file.readline(buf) >= 0) {
+		var line = buf.toString();
+		if (line.charAt(0) == '#') {
+			if (to_print) print(line);
+			continue;
+		}
+		var t = line.split("\t");
+		var pos = parseInt(t[1]) - 1;
+		if (bed != null) {
+			if (bed[t[0]] == null) continue;
+			if (bed[t[0]](pos, pos + t[3].length) == null) continue;
+		}
+		var s = t[4].split(",");
+		var m, hpl = null, e_sub = false, e_gap = false;
+		if ((m = /\bHPL=([^\s;]+)/.exec(t[7])) != null)
+			hpl = m[1].split(",");
+		for (var i = 0; i < s.length; ++i) {
+			var gap = s[i].length - t[3].length;
+			if (gap != 0) {
+				var gap_len = gap > 0? gap : -gap;
+				if (gap_len < min_l || gap_len > max_l) continue;
+				if (hpl != null && hpl[i] != null && hpl[i] != '.') {
+					var l = parseInt(hpl[i]);
+					if (l > max_hpl) continue;
+				}
+				e_gap = true;
+			} else e_sub = true;
+		}
+		if (e_gap) ++n_gap;
+		if (e_sub) ++n_sub;
+		if (to_print && (e_gap || e_sub))
+			print(line);
+	}
+	buf.destroy();
+	file.close();
+	if (!to_print) print(n_sub, n_gap);
 }
 
 function b8_distEval(args)
@@ -1613,10 +1668,9 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r52\n");
+		print("Version:  r53\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
-		print("          rtgprep  prepare 'bgt atomize' VCF for 'rtg vcfeval'");
 		print("");
 		print("          deovlp   remove overlaps between variants");
 		print("          upd1gt   update genotypes in a single-sample VCF");
@@ -1654,7 +1708,8 @@ function main(args)
 	else if (cmd == 'vcfsum') b8_vcfsum(args);
 	else if (cmd == 'vcf2bed') b8_vcf2bed(args);
 	else if (cmd == 'vcfswap') b8_vcfswap(args);
-	else if (cmd == 'rtgprep' || cmd == 'deprep') b8_rtgprep(args);
+	else if (cmd == 'postatom' || cmd == 'atompost') b8_postatom(args);
+	else if (cmd == 'atomcnt') b8_atomcnt(args);
 	else warn("Unrecognized command");
 }
 
