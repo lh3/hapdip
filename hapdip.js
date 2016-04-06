@@ -1604,7 +1604,7 @@ function b8_distEval(args)
 	var truth = read_vcf(args[getopt.ind]);
 	warn("Reading "+args[getopt.ind+1]+"...");
 	var call  = read_vcf(args[getopt.ind+1]);
-	var TP = [0,0], FP = [0,0], FN = [0,0];
+	var TP = [0,0], FP = [0,0], FN = [0,0], TP1 = [0,0];
 
 	warn("Counting TP and FN...");
 	var cc = [0, 0, 0, 0, 0];
@@ -1639,7 +1639,7 @@ function b8_distEval(args)
 			if (chr_truth == null || chr_truth(start, end) == null) {
 				++FP[type];
 				if (show_err) print(chr, x[i][0], x[i][1], x[i][2], 'FP');
-			}
+			} else ++TP1[type];
 		}
 	}
 
@@ -1650,6 +1650,8 @@ function b8_distEval(args)
 			print("distEval", 'SNP', "TP", TP[0]);
 			print("distEval", 'SNP', "FN", FN[0]);
 			print("distEval", 'SNP', "FP", FP[0]);
+			print("distEval", 'SNP', '%FNR', (100 * FN[0] / (FN[0] + TP[0])).toFixed(2));
+			print("distEval", 'SNP', '%FDR', (100 * FP[0] / (FP[0] + TP1[0])).toFixed(2));
 		}
 		if (eval_indel) {
 			if (bed_NP != null)
@@ -1657,6 +1659,8 @@ function b8_distEval(args)
 			print("distEval", 'INDEL', "TP", TP[1]);
 			print("distEval", 'INDEL', "FN", FN[1]);
 			print("distEval", 'INDEL', "FP", FP[1]);
+			print("distEval", 'INDEL', '%FNR', (100 * FN[1] / (FN[1] + TP[1])).toFixed(2));
+			print("distEval", 'INDEL', '%FDR', (100 * FP[1] / (FP[1] + TP1[1])).toFixed(2));
 		}
 	}
 	if (hp != null) hp.destroy();
@@ -1670,7 +1674,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r54\n");
+		print("Version:  r55\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
