@@ -854,9 +854,10 @@ function b8_anno(args)
 
 function b8_filter(args)
 {
-	var c, AB = 30, LC = 0, DP_coef = 4, DS = 1, FS = 30, min_q = 30, min_dp = 3, no_header = false, drop_flt = false, auto_only = false, meanDP = -1;
-	while ((c = getopt(args, "Aa:q:f:HDd:c:s:F:")) != null) {
+	var c, AB = 30, AB_gap = null, LC = 0, DP_coef = 4, DS = 1, FS = 30, min_q = 30, min_dp = 3, no_header = false, drop_flt = false, auto_only = false, meanDP = -1;
+	while ((c = getopt(args, "Aa:b:q:f:HDd:c:s:F:")) != null) {
 		if (c == 'a') AB = parseInt(getopt.arg);
+		else if (c == 'b') AB_gap = parseInt(getopt.arg);
 		else if (c == 'q') min_q = parseFloat(getopt.arg);
 		else if (c == 'f') FS = parseFloat(getopt.arg);
 		else if (c == 'H') no_header = true;
@@ -867,10 +868,12 @@ function b8_filter(args)
 		else if (c == 'A') auto_only = true;
 		else if (c == 'F') meanDP = parseFloat(getopt.arg);
 	}
+	if (AB_gap == null) AB_gap = AB;
 
 	if (getopt.ind + 1 > args.length) {
 		print("\nUsage:   k8 hapdip.js filter [options] <anno.vcf>\n");
-		print("Options: -a INT     min _AB ["+AB+"]");
+		print("Options: -a INT     min _AB at SNPs ["+AB+"]");
+		print("         -b INT     min _AB at INDELs [same as -a]");
 		print("         -q FLOAT   min QUAL ["+min_q+"]");
 		print("         -f FLOAT   max _FS ["+FS+"]");
 		print("         -d INT     min _DP ["+min_dp+"]");
@@ -922,8 +925,8 @@ function b8_filter(args)
 				print('##FILTER=<ID=DPhigh,Description="High read depth: _DP>'+max_dp.toFixed(2)+'">');
 				print('##FILTER=<ID=DPlow,Description="Low read depth: _DP<'+min_dp+'">');
 				print('##FILTER=<ID=FShigh,Description="Large Fisher-Strand bias: _FS>'+FS+'">');
-				print('##FILTER=<ID=ABlow,Description="Low fraction of non-reference reads: _AB<'+AB+'">');
-				print('##FILTER=<ID=DSlow,Description="Low double-strand support: _DS<'+DS+'">');
+				print('##FILTER=<ID=ABlow,Description="Low fraction of non-reference reads: _AB<'+AB+' at SNPs or _AB<'+AB_gap+' at INDELs">');
+				print('##FILTER=<ID=DSlow,Description="Low double-strand support at SNPs: _DS<'+DS+'">');
 				for (var i = 0; i < max_BED; ++i)
 					print('##FILTER=<ID=BED'+(i+1)+',Description="Overlapping _BED'+(i+1)+'">');
 			}
@@ -939,9 +942,16 @@ function b8_filter(args)
 			if (dp > DP) flt += "DPhigh;";
 			else if (dp < min_dp) flt += "DPlow;";
 		} else flt += "noDP";
-		if ((m = /_DS=(\d+)/.exec(t[7])) != null && parseInt(m[1]) < DS) flt += "DSlow;";
 		if ((m = /_FS=(\d+)/.exec(t[7])) != null && parseInt(m[1]) > FS) flt += "FShigh;";
-		if ((m = /_AB=(\d+)/.exec(t[7])) != null && parseInt(m[1]) < AB) flt += "ABlow;";
+		var has_gap = false, s = t[4].split(",");
+		for (var i = 0; i < s.length; ++i)
+			if (s[i].length != t[3].length) has_gap = true;
+		if (!has_gap) {
+			if ((m = /_DS=(\d+)/.exec(t[7])) != null && parseInt(m[1]) < DS) flt += "DSlow;";
+			if ((m = /_AB=(\d+)/.exec(t[7])) != null && parseInt(m[1]) < AB) flt += "ABlow;";
+		} else {
+			if ((m = /_AB=(\d+)/.exec(t[7])) != null && parseInt(m[1]) < AB_gap) flt += "ABlow;";
+		}
 		if ((m = /_BED(\d+)=(-?\d+)/.exec(t[7])) != null && parseInt(m[2]) != 0) flt += "BED"+m[1]+';';
 		if (drop_flt && flt != '') continue;
 		t[6] = flt == ''? "." : flt.substr(0, flt.length-1);
@@ -1674,7 +1684,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r55\n");
+		print("Version:  r56\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
