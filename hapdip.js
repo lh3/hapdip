@@ -1527,8 +1527,8 @@ function b8_atomcnt(args)
 
 function b8_distEval(args)
 {
-	var c, fn_bed = null, fn_hp = null, max_d = 10, min_l = 0, max_l = 1<<30, eval_snp = true, eval_indel = true, show_err = false;
-	while ((c = getopt(args, "b:d:ISep:l:L:")) != null) {
+	var c, fn_bed = null, fn_hp = null, max_d = 10, min_l = 0, max_l = 1<<30, eval_snp = true, eval_indel = true, show_err = false, fn_sum = null;
+	while ((c = getopt(args, "b:d:ISep:l:L:s:")) != null) {
 		if (c == 'b') fn_bed = getopt.arg;
 		else if (c == 'p') fn_hp = getopt.arg;
 		else if (c == 'd') max_d = parseInt(getopt.arg);
@@ -1537,6 +1537,7 @@ function b8_distEval(args)
 		else if (c == 'e') show_err = true;
 		else if (c == 'l') min_l = parseInt(getopt.arg);
 		else if (c == 'L') max_l = parseInt(getopt.arg);
+		else if (c == 's') fn_sum = getopt.arg, show_err = true;
 	}
 	if (getopt.ind + 2 > args.length) {
 		print("");
@@ -1548,7 +1549,8 @@ function b8_distEval(args)
 		print("         -L INT     max INDEL length [inf]");
 		print("         -S         skip SNPs");
 		print("         -I         skip INDELs");
-		print("         -e         print FN/FP (fmt: chr, start, end, indel, FN/FP)");
+		print("         -s FILE    output FN/FP sites to stdout and write summary to FILE [null]");
+//		print("         -e         print FN/FP (fmt: chr, start, end, indel, FN/FP)");
 		print("");
 		print("Note: By default, if a called SNP is close to a true INDEL but no other");
 		print("      true SNPs, it is still considered to be correct. When -S or -I is");
@@ -1653,25 +1655,32 @@ function b8_distEval(args)
 		}
 	}
 
-	if (!show_err) {
+	if (!show_err || fn_sum) {
+		var out = '';
 		if (eval_snp) {
 			if (bed_NP != null)
-				print("distEval", 'SNP', "N+P", sum_NP);
-			print("distEval", 'SNP', "TP", TP[0]);
-			print("distEval", 'SNP', "FN", FN[0]);
-			print("distEval", 'SNP', "FP", FP[0]);
-			print("distEval", 'SNP', '%FNR', (100 * FN[0] / (FN[0] + TP[0])).toFixed(2));
-			print("distEval", 'SNP', '%FDR', (100 * FP[0] / (FP[0] + TP1[0])).toFixed(2));
+				out += "distEval\tSNP\tN+P\t" + sum_NP + "\n";
+			out += "distEval\tSNP\tTP\t" + TP[0] + "\n";
+			out += "distEval\tSNP\tFN\t" + FN[0] + "\n";
+			out += "distEval\tSNP\tFP\t" + FP[0] + "\n";
+			out += "distEval\tSNP\t%FNR\t" + (100 * FN[0] / (FN[0] + TP[0])).toFixed(2) + "\n";
+			out += "distEval\tSNP\t%FDR\t" + (100 * FP[0] / (FP[0] + TP1[0])).toFixed(2) + "\n";
 		}
 		if (eval_indel) {
 			if (bed_NP != null)
-				print("distEval", 'INDEL', "N+P", sum_NP);
-			print("distEval", 'INDEL', "TP", TP[1]);
-			print("distEval", 'INDEL', "FN", FN[1]);
-			print("distEval", 'INDEL', "FP", FP[1]);
-			print("distEval", 'INDEL', '%FNR', (100 * FN[1] / (FN[1] + TP[1])).toFixed(2));
-			print("distEval", 'INDEL', '%FDR', (100 * FP[1] / (FP[1] + TP1[1])).toFixed(2));
+				out += "distEval\tINDEL\tN+P\t" + sum_NP + "\n";
+			out += "distEval\tINDEL\tTP\t" + TP[1] + "\n";
+			out += "distEval\tINDEL\tFN\t" + FN[1] + "\n";
+			out += "distEval\tINDEL\tFP\t" + FP[1] + "\n";
+			out += "distEval\tINDEL\t%FNR\t" + (100 * FN[1] / (FN[1] + TP[1])).toFixed(2) + "\n";
+			out += "distEval\tINDEL\t%FDR\t" + (100 * FP[1] / (FP[1] + TP1[1])).toFixed(2); // no "\n" at the end, as print() will add it
 		}
+		if (fn_sum) {
+			var fpout = new File(fn_sum, "w");
+			fpout.write(out);
+			fpout.write("\n");
+			fpout.close();
+		} else print(out);
 	}
 	if (hp != null) hp.destroy();
 }
@@ -1684,7 +1693,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r56\n");
+		print("Version:  r57\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
