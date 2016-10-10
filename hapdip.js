@@ -1527,8 +1527,8 @@ function b8_atomcnt(args)
 
 function b8_distEval(args)
 {
-	var c, fn_bed = null, fn_hp = null, max_d = 10, min_l = 0, max_l = 1<<30, eval_snp = true, eval_indel = true, show_err = false, fn_sum = null, fn_bed_excl = null;
-	while ((c = getopt(args, "B:b:d:ISep:l:L:s:")) != null) {
+	var c, fn_bed = null, fn_hp = null, max_d = 10, min_l = 0, max_l = 1<<30, eval_snp = true, eval_indel = true, show_err = false, vcf_indel = false, contained = false, fn_sum = null, fn_bed_excl = null;
+	while ((c = getopt(args, "CVB:b:d:ISep:l:L:s:")) != null) {
 		if (c == 'b') fn_bed = getopt.arg;
 		else if (c == 'B') fn_bed_excl = getopt.arg;
 		else if (c == 'p') fn_hp = getopt.arg;
@@ -1539,6 +1539,8 @@ function b8_distEval(args)
 		else if (c == 'l') min_l = parseInt(getopt.arg);
 		else if (c == 'L') max_l = parseInt(getopt.arg);
 		else if (c == 's') fn_sum = getopt.arg, show_err = true;
+		else if (c == 'V') vcf_indel = true;
+		else if (c == 'C') contained = true;
 	}
 	if (getopt.ind + 2 > args.length) {
 		print("");
@@ -1606,8 +1608,10 @@ function b8_distEval(args)
 					}
 				}
 				var start, end;
-				if (x[4] > 0) start = x[3] - 1, end = x[3] + 1; // insertion
-				else if (x[4] == 0) start = x[3], end = x[3] + 1; // SNP
+				if (x[4] > 0) {
+					start = x[3] - 1;
+					end = vcf_indel? x[3] : x[3] + 1;
+				} else if (x[4] == 0) start = x[3], end = x[3] + 1; // SNP
 				else start = x[3], end = x[3] + (-x[4]); // deletion
 				if (bed_excl != null && bed_excl[t[0]] != null && bed_excl[t[0]](start, end) != null) flt = true;
 				reg[t[0]].push([start, end, x[4], flt]);
@@ -1636,7 +1640,9 @@ function b8_distEval(args)
 		if (bed_NP != null && chr_NP == null) continue; // not in N+P
 		var x = truth[0][chr];
 		for (var i = 0; i < x.length; ++i) {
-			if (bed_NP != null && chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
+			var ret;
+			if (bed_NP != null && (ret = chr_NP(x[i][0], x[i][1])) == null) continue; // not in N+P
+			if (contained && !(ret[0] <= x[i][0] && ret[1] >= x[i][1])) continue; // not contained
 			if (x[i][3]) continue; // filtered
 			var start = x[i][0] - max_d, end = x[i][1] + max_d, type = x[i][2] == 0? 0 : 1;
 			if (start < 0) start = 0;
@@ -1654,7 +1660,9 @@ function b8_distEval(args)
 		if (bed_NP != null && chr_NP == null) continue; // not in N+P
 		var x = call[0][chr];
 		for (var i = 0; i < x.length; ++i) {
-			if (bed_NP != null && chr_NP(x[i][0], x[i][1]) == null) continue; // not in N+P
+			var ret;
+			if (bed_NP != null && (ret = chr_NP(x[i][0], x[i][1])) == null) continue; // not in N+P
+			if (contained && !(ret[0] <= x[i][0] && ret[1] >= x[i][1])) continue; // not contained
 			if (x[i][3]) continue; // filtered
 			var start = x[i][0] - max_d, end = x[i][1] + max_d, type = x[i][2] == 0? 0 : 1;
 			if (start < 0) start = 0;
@@ -1703,7 +1711,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r58\n");
+		print("Version:  r59\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
