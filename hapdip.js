@@ -1611,7 +1611,7 @@ function b8_distEval(args)
 				else start = x[3], end = x[3] + (-x[4]); // deletion
 				var ret;
 				if (bed_excl != null && bed_excl[t[0]] != null && (ret = bed_excl[t[0]](start, end)) != null) {
-					if (ret[0] <= x[i][0] && ret[1] >= x[i][1])
+					if (ret[0] <= start && ret[1] >= end)
 						flt = true;
 				}
 				reg[t[0]].push([start, end, x[4], flt]);
@@ -1707,7 +1707,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r60\n");
+		print("Version:  r61\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
