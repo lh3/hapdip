@@ -1527,8 +1527,9 @@ function b8_atomcnt(args)
 
 function b8_distEval(args)
 {
-	var c, fn_bed = null, fn_hp = null, max_d = 10, min_l = 0, max_l = 1<<30, eval_snp = true, eval_indel = true, show_err = false, fn_sum = null, fn_bed_excl = null;
-	while ((c = getopt(args, "B:b:d:ISep:l:L:s:")) != null) {
+	var c, max_d = 10, min_l = 0, max_l = 1<<30, eval_snp = true, eval_indel = true, show_err = false, vcf_pos = false, ignore_flt = false, min_qual = 0;
+	var fn_bed = null, fn_hp = null, fn_sum = null, fn_bed_excl = null;
+	while ((c = getopt(args, "B:b:d:IFSevp:l:L:s:q:")) != null) {
 		if (c == 'b') fn_bed = getopt.arg;
 		else if (c == 'B') fn_bed_excl = getopt.arg;
 		else if (c == 'p') fn_hp = getopt.arg;
@@ -1539,6 +1540,9 @@ function b8_distEval(args)
 		else if (c == 'l') min_l = parseInt(getopt.arg);
 		else if (c == 'L') max_l = parseInt(getopt.arg);
 		else if (c == 's') fn_sum = getopt.arg, show_err = true;
+		else if (c == 'v') vcf_pos = true;
+		else if (c == 'q') min_q = parseInt(getopt.arg);
+		else if (c == 'F') ignore_flt = true;
 	}
 	if (getopt.ind + 2 > args.length) {
 		print("");
@@ -1551,6 +1555,9 @@ function b8_distEval(args)
 		print("         -L INT     max INDEL length [inf]");
 		print("         -S         skip SNPs");
 		print("         -I         skip INDELs");
+		print("         -F         ignore the FILTER field");
+		print("         -q INT     min QUAL [0]");
+		print("         -v         use the VCF way to set insertion coordinate");
 		print("         -s FILE    output FN/FP sites to stdout and write summary to FILE [null]");
 //		print("         -e         print FN/FP (fmt: chr, start, end, indel, FN/FP)");
 		print("");
@@ -1574,7 +1581,7 @@ function b8_distEval(args)
 	}
 	var hp = fn_hp != null? b8_read_hrun(fn_hp) : null;
 
-	function read_vcf(fn)
+	function read_vcf(fn, ignore_flt, min_qual)
 	{
 		var file = new File(fn);
 		var buf = new Bytes();
@@ -1584,13 +1591,14 @@ function b8_distEval(args)
 		while (file.readline(buf) >= 0) {
 			if (buf[0] == sharp) continue; // skip header lines
 			var t = buf.toString().split("\t");
-			if (t[6] != '.' && t[6] != 'PASS') continue; // skip filtered variants
+			if (!ignore_flt && t[6] != '.' && t[6] != 'PASS') continue; // skip filtered variants
 			var a = b8_parse_vcf1(t);
 			if (reg[t[0]] == null) reg[t[0]] = [];
 			for (var i = 0; i < a.length; ++i) {
 				var x = a[i], flt = false;
 				if (!eval_indel && x[4] != 0) continue;
 				if (!eval_snp   && x[4] == 0) continue;
+				if (x[0] < min_qual) continue;
 				if (x[4] != 0) {
 					if (x[4] < min_l && x[4] > -min_l) flt = true;
 					if (x[4] > max_l || x[4] < -max_l) flt = true;
@@ -1606,8 +1614,10 @@ function b8_distEval(args)
 					}
 				}
 				var start, end;
-				if (x[4] > 0) start = x[3] - 1, end = x[3] + 1; // insertion
-				else if (x[4] == 0) start = x[3], end = x[3] + 1; // SNP
+				if (x[4] > 0) { // insertion
+					start = x[3] - 1;
+					end = vcf_pos? start : x[3] + 1;
+				} else if (x[4] == 0) start = x[3], end = x[3] + 1; // SNP
 				else start = x[3], end = x[3] + (-x[4]); // deletion
 				var ret;
 				if (bed_excl != null && bed_excl[t[0]] != null && (ret = bed_excl[t[0]](start, end)) != null) {
@@ -1627,9 +1637,9 @@ function b8_distEval(args)
 	}
 
 	warn("Reading "+args[getopt.ind]+"...");
-	var truth = read_vcf(args[getopt.ind]);
+	var truth = read_vcf(args[getopt.ind], true, 0);
 	warn("Reading "+args[getopt.ind+1]+"...");
-	var call  = read_vcf(args[getopt.ind+1]);
+	var call  = read_vcf(args[getopt.ind+1], ignore_flt, min_qual);
 	var TP = [0,0], FP = [0,0], FN = [0,0], TP1 = [0,0];
 
 	warn("Counting TP and FN...");
@@ -1707,7 +1717,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r61\n");
+		print("Version:  r62\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
