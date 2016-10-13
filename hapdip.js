@@ -1686,18 +1686,22 @@ function b8_distEval(args)
 				out += "distEval\tSNP\tN+P\t" + sum_NP + "\n";
 			out += "distEval\tSNP\tTP\t" + TP[0] + "\n";
 			out += "distEval\tSNP\tFN\t" + FN[0] + "\n";
+			out += "distEval\tSNP\tTPc\t" + TP1[0] + "\n";
 			out += "distEval\tSNP\tFP\t" + FP[0] + "\n";
 			out += "distEval\tSNP\t%FNR\t" + (100 * FN[0] / (FN[0] + TP[0])).toFixed(2) + "\n";
 			out += "distEval\tSNP\t%FDR\t" + (100 * FP[0] / (FP[0] + TP1[0])).toFixed(2) + "\n";
+			out += "distEval\tSNP\tFPpM\t" + (1e6 * FP[0] / sum_NP).toFixed(3) + "\n";
 		}
 		if (eval_indel) {
 			if (bed_NP != null)
 				out += "distEval\tINDEL\tN+P\t" + sum_NP + "\n";
 			out += "distEval\tINDEL\tTP\t" + TP[1] + "\n";
 			out += "distEval\tINDEL\tFN\t" + FN[1] + "\n";
+			out += "distEval\tINDEL\tTPc\t" + TP1[1] + "\n";
 			out += "distEval\tINDEL\tFP\t" + FP[1] + "\n";
 			out += "distEval\tINDEL\t%FNR\t" + (100 * FN[1] / (FN[1] + TP[1])).toFixed(2) + "\n";
-			out += "distEval\tINDEL\t%FDR\t" + (100 * FP[1] / (FP[1] + TP1[1])).toFixed(2); // no "\n" at the end, as print() will add it
+			out += "distEval\tINDEL\t%FDR\t" + (100 * FP[1] / (FP[1] + TP1[1])).toFixed(2) + "\n"; // no "\n" at the end, as print() will add it
+			out += "distEval\tINDEL\tFPpM\t" + (1e6 * FP[1] / sum_NP).toFixed(3);
 		}
 		if (fn_sum) {
 			var fpout = new File(fn_sum, "w");
@@ -1717,7 +1721,7 @@ function main(args)
 {
 	if (args.length == 0) {
 		print("\nUsage:    k8 hapdip.js <command> [arguments]");
-		print("Version:  r62\n");
+		print("Version:  r63\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
 		print("");
