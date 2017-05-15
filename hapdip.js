@@ -1347,12 +1347,14 @@ function b8_eval(args)
 	var hetcnt = [];
 	hetcnt[0] = read_vcf(args[getopt.ind]);
 	hetcnt[1] = read_vcf(args[getopt.ind+1]);
-	print(label, "SNP", "FP", hetcnt[0][0]);
-	print(label, "SNP", "TP", hetcnt[1][0] - hetcnt[0][0]);
-	print(label, "INDEL", "FP", hetcnt[0][1] + hetcnt[0][2]);
-	print(label, "INDEL", "TP", (hetcnt[1][1] + hetcnt[1][2]) - (hetcnt[0][1] + hetcnt[0][2]));
-	print(label, "INDEL", "FP", hetcnt[0][1], "INDEL-1bp");
-	print(label, "INDEL", "TP", hetcnt[1][1] - hetcnt[0][1], "INDEL-1bp");
+	print(label)
+	print("class\tTP\tFP")
+	print("SNP\t" + (hetcnt[1][0] - hetcnt[0][0]).toString() + "\t" + hetcnt[0][0].toString());
+	print("INDEL\t" +
+		   	((hetcnt[1][1] + hetcnt[1][2]) - (hetcnt[0][1] + hetcnt[0][2])).toString()
+		   	 + "\t" +
+			(hetcnt[0][1] + hetcnt[0][2]).toString());
+	print("INDEL-1bp\t" + (hetcnt[1][1] - hetcnt[0][1]).toString() + "\t" + hetcnt[0][1].toString());
 }
 
 /*****************************
