@@ -1538,6 +1538,65 @@ function b8_distEval(args)
 	}
 }
 
+function b8_rtgeval(args)
+{
+	function get_counts(fn) {
+		var n_snp = 0, n_indel = 0;
+		var buf = new Bytes();
+		var file = new File(fn);
+		while (file.readline(buf) >= 0) {
+			var t = buf.toString().split("\t");
+			if (t[0].charAt(0) == '#') continue;
+			var a = b8_parse_vcf1(t);
+			for (var i = 0; i < a.length; ++i) {
+				if (a[i][1] == 0 || a[i][1] == 1)
+					++n_snp;
+				else if (a[i][1] == 3 || a[i][1] == 4)
+					++n_indel;
+			}
+		}
+		file.close();
+		buf.destroy();
+		return [n_snp, n_indel];
+	}
+
+	if (args.length < 2) {
+		print("Usage: hapdip.js rtgeval <conf.bed> <rtgout-dir>");
+		exit(1);
+	}
+
+	var buf = new Bytes();
+	var file = new File(args[0]);
+	var l_conf = 0;
+	while (file.readline(buf) >= 0) {
+		var t = buf.toString().split("\t");
+		l_conf += parseInt(t[2]) - parseInt(t[1]);
+	}
+	file.close();
+	buf.destroy();
+
+	var c_tp  = get_counts(args[1] + '/tp-baseline.vcf.gz');
+	var c_fn  = get_counts(args[1] + '/fn.vcf.gz');
+	var c_tpc = get_counts(args[1] + '/tp.vcf.gz');
+	var c_fp  = get_counts(args[1] + '/fp.vcf.gz');
+	print("rtgeval", "SNP", "N+P", l_conf);
+	print("rtgeval", "SNP", "TP", c_tp[0]);
+	print("rtgeval", "SNP", "FN", c_fn[0]);
+	print("rtgeval", "SNP", "TPc",c_tpc[0]);
+	print("rtgeval", "SNP", "FP", c_fp[0]);
+	print("rtgeval", "SNP", "%FNR", (100 * c_fn[0] / (c_fn[0] + c_tp[0] )).toFixed(2));
+	print("rtgeval", "SNP", "%FDR", (100 * c_fp[0] / (c_fp[0] + c_tpc[0])).toFixed(2));
+	print("rtgeval", "SNP", "FPpM", (1e6 * c_fp[0] / l_conf).toFixed(3));
+	print("rtgeval", "INDEL", "N+P", l_conf);
+	print("rtgeval", "INDEL", "TP", c_tp[1]);
+	print("rtgeval", "INDEL", "FN", c_fn[1]);
+	print("rtgeval", "INDEL", "TPc",c_tpc[1]);
+	print("rtgeval", "INDEL", "FP", c_fp[1]);
+	print("rtgeval", "INDEL", "%FNR", (100 * c_fn[1] / (c_fn[1] + c_tp[1] )).toFixed(2));
+	print("rtgeval", "INDEL", "%FDR", (100 * c_fp[1] / (c_fp[1] + c_tpc[1])).toFixed(2));
+	print("rtgeval", "INDEL", "FPpM", (1e6 * c_fp[1] / l_conf).toFixed(3));
+}
+
 /***********************
  *** Main() function ***
  ***********************/
@@ -1549,6 +1608,7 @@ function main(args)
 		print("Version:  r66\n");
 		print("Commands: eval     evaluate a pair of CHM1 and NA12878 VCFs");
 		print("          distEval distance-based VCF comparison");
+		print("          rtgeval  parse RTG's vcfeval output");
 		print("");
 		print("          deovlp   remove overlaps between variants");
 		print("          upd1gt   update genotypes in a single-sample VCF");
@@ -1582,6 +1642,7 @@ function main(args)
 	else if (cmd == 'bedcmpm') b8_bedcmpm(args);
 	else if (cmd == 'cbs') b8_cbs(args);
 	else if (cmd == 'distEval') b8_distEval(args);
+	else if (cmd == 'rtgeval') b8_rtgeval(args);
 	else if (cmd == 'vcfsub') b8_vcfsub(args);
 	else if (cmd == 'vcfsum') b8_vcfsum(args);
 	else if (cmd == 'vcf2bed') b8_vcf2bed(args);
