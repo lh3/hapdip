@@ -409,7 +409,7 @@ function b8_parse_vcf1(t) // t = vcf_line.split("\t")
 	// loop through each ALT allele
 	for (var i = 0; i < s.length; ++i) {
 		var type; // 0=ts, 1=tv, 2=mnp, 3=ins, 4=del
-		if (/^<\S+>/.test(s[i])) continue;
+		if (/^<\S+>/.test(s[i]) || s[i] == '*') continue;
 		if (t[3].length == 1 && s[i].length == 1) { // SNP; this is a special case of the last "else", but is faster
 			type = ((t[3] == 'A' && s[i] == 'G') || (t[3] == 'G' && s[i] == 'A') || (t[3] == 'C' && s[i] == 'T') || (t[3] == 'T' && s[i] == 'C'))? 0 : 1;
 			a.push([t[5], type, gt, t[1], 0]);
