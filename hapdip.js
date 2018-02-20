@@ -1538,33 +1538,12 @@ function b8_distEval(args)
 	}
 }
 
-function b8_rtgeval(args)
+function b8_rtgeval_annotate(args)
 {
-	function get_counts(fn) {
-		var n_snp = 0, n_indel = 0;
-		var buf = new Bytes();
-		var file = new File(fn);
-		while (file.readline(buf) >= 0) {
-			var t = buf.toString().split("\t");
-			if (t[0].charAt(0) == '#') continue;
-			var a = b8_parse_vcf1(t);
-			for (var i = 0; i < a.length; ++i) {
-				if (a[i][1] == 0 || a[i][1] == 1)
-					++n_snp;
-				else if (a[i][1] == 3 || a[i][1] == 4)
-					++n_indel;
-			}
-		}
-		file.close();
-		buf.destroy();
-		return [n_snp, n_indel];
-	}
-
 	if (args.length < 2) {
 		print("Usage: hapdip.js rtgeval <conf.bed> <rtgout-dir>");
 		exit(1);
 	}
-
 	var buf = new Bytes();
 	var file = new File(args[0]);
 	var l_conf = 0;
@@ -1573,28 +1552,77 @@ function b8_rtgeval(args)
 		l_conf += parseInt(t[2]) - parseInt(t[1]);
 	}
 	file.close();
-	buf.destroy();
 
-	var c_tp  = get_counts(args[1] + '/tp-baseline.vcf.gz');
-	var c_fn  = get_counts(args[1] + '/fn.vcf.gz');
-	var c_tpc = get_counts(args[1] + '/tp.vcf.gz');
-	var c_fp  = get_counts(args[1] + '/fp.vcf.gz');
-	print("rtgeval", "SNP", "N+P", l_conf);
-	print("rtgeval", "SNP", "TP", c_tp[0]);
-	print("rtgeval", "SNP", "FN", c_fn[0]);
-	print("rtgeval", "SNP", "TPc",c_tpc[0]);
-	print("rtgeval", "SNP", "FP", c_fp[0]);
-	print("rtgeval", "SNP", "%FNR", (100 * c_fn[0] / (c_fn[0] + c_tp[0] )).toFixed(2));
-	print("rtgeval", "SNP", "%FDR", (100 * c_fp[0] / (c_fp[0] + c_tpc[0])).toFixed(2));
-	print("rtgeval", "SNP", "FPpM", (1e6 * c_fp[0] / l_conf).toFixed(3));
-	print("rtgeval", "INDEL", "N+P", l_conf);
-	print("rtgeval", "INDEL", "TP", c_tp[1]);
-	print("rtgeval", "INDEL", "FN", c_fn[1]);
-	print("rtgeval", "INDEL", "TPc",c_tpc[1]);
-	print("rtgeval", "INDEL", "FP", c_fp[1]);
-	print("rtgeval", "INDEL", "%FNR", (100 * c_fn[1] / (c_fn[1] + c_tp[1] )).toFixed(2));
-	print("rtgeval", "INDEL", "%FDR", (100 * c_fp[1] / (c_fp[1] + c_tpc[1])).toFixed(2));
-	print("rtgeval", "INDEL", "FPpM", (1e6 * c_fp[1] / l_conf).toFixed(3));
+	var tpb = [[0, 0], [0, 0]], tpc = [[0, 0], [0, 0]];
+	var fn  = [[0, 0], [0, 0]], fp  = [[0, 0], [0, 0]];
+
+	var h_fp = {};
+	file = new File(args[1] + '/calls.vcf.gz');
+	while (file.readline(buf) >= 0) {
+		var m, t = buf.toString().split("\t");
+		if (t[0].charAt(0) == '#') continue;
+		if ((m = /CALL=([^\s;]+)/.exec(t[7])) == null) continue;
+		var call = m[1];
+		if (call == 'OUT' && call == 'IGN') continue;
+		var a = b8_parse_vcf1(t);
+		for (var i = 0; i < a.length; ++i) {
+			var type = null;
+			if (a[i][1] == 0 || a[i][1] == 1) {
+				type = 0;
+			} else if (a[i][1] == 3 || a[i][1] == 4) {
+				type = 1;
+			}
+			if (type == null) continue;
+			if (call == 'TP') ++tpc[0][type], ++tpc[1][type];
+			else if (call == 'FP_CA') ++tpc[0][type], ++fp[1][type];
+			else if (call == 'FP') ++fp[0][type], ++fp[1][type], h_fp[t[0] + "\t" + t[1]] = 1;
+		}
+	}
+	file.close();
+
+	file = new File(args[1] + '/baseline.vcf.gz');
+	while (file.readline(buf) >= 0) {
+		var m, t = buf.toString().split("\t");
+		if (t[0].charAt(0) == '#') continue;
+		if ((m = /BASE=([^\s;]+)/.exec(t[7])) == null) continue;
+		var base = m[1];
+		if (base == 'OUT') continue;
+		var is_fp = (t[0]+"\t"+t[1] in h_fp)? true : false;
+		if (base == 'IGN' && !is_fp) continue;
+		var a = b8_parse_vcf1(t);
+		for (var i = 0; i < a.length; ++i) {
+			var type = null;
+			if (a[i][1] == 0 || a[i][1] == 1) {
+				type = 0;
+			} else if (a[i][1] == 3 || a[i][1] == 4) {
+				type = 1;
+			}
+			if (type == null) continue;
+			if (base == 'TP') ++tpb[0][type], ++tpb[1][type];
+			else if (base == 'FN_CA') ++tpb[0][type], ++fn[1][type];
+			else if (base == 'FN') ++fn[0][type], ++fn[1][type];
+			else if (base == 'IGN' && is_fp)
+				--fp[0][type], ++tpc[0][type];
+		}
+	}
+	file.close();
+
+	for (var is_gt = 0; is_gt <= 1; ++is_gt) {
+		var col1 = is_gt? 'rtgeval-gt' : 'rtgeval-al';
+		for (var is_indel = 0; is_indel <= 1; ++is_indel) {
+			var col2 = is_indel? 'INDEL' : 'SNP';
+			print(col1, col2, "N+P", l_conf);
+			print(col1, col2, "TP", tpb[is_gt][is_indel]);
+			print(col1, col2, "FN",  fn[is_gt][is_indel]);
+			print(col1, col2, "TPc",tpc[is_gt][is_indel]);
+			print(col1, col2, "FP",  fp[is_gt][is_indel]);
+			print(col1, col2, "%FNR", (100 * fn[is_gt][is_indel] / (fn[is_gt][is_indel] + tpb[is_gt][is_indel])).toFixed(2));
+			print(col1, col2, "%FDR", (100 * fp[is_gt][is_indel] / (fp[is_gt][is_indel] + tpc[is_gt][is_indel])).toFixed(2));
+			print(col1, col2, "FPpM", (1e6 * fp[is_gt][is_indel] / l_conf).toFixed(3));
+		}
+	}
+
+	buf.destroy();
 }
 
 /***********************
@@ -1642,7 +1670,7 @@ function main(args)
 	else if (cmd == 'bedcmpm') b8_bedcmpm(args);
 	else if (cmd == 'cbs') b8_cbs(args);
 	else if (cmd == 'distEval') b8_distEval(args);
-	else if (cmd == 'rtgeval') b8_rtgeval(args);
+	else if (cmd == 'rtgeval') b8_rtgeval_annotate(args);
 	else if (cmd == 'vcfsub') b8_vcfsub(args);
 	else if (cmd == 'vcfsum') b8_vcfsum(args);
 	else if (cmd == 'vcf2bed') b8_vcf2bed(args);
